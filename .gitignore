@@ -1,0 +1,5 @@
+*.pyc
+*.c
+*.so
+source/.pyzelig.crc32
+source/build/*
