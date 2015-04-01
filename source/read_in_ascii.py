@@ -28,8 +28,8 @@ def read_in_ascii_attributes(filename):
 	outputs: raster_data -- the raster data as a numpy matrix
              x_size -- the length along the x-edge (West-East) of each pixel in the raster
              y_size -- the length along the y-edge (North-South) of each pixel in the raster
-             top_left_x -- ??
-             top_left_y -- ??
+             top_left_x -- longitude coordinate in UTM of NW corner of the simulation area
+             top_left_y -- latitude coordinate in UTM of NW corner of the simulation area
     """
     dataset = gdal.Open(filename)
     raster_data = np.array(dataset.ReadAsArray(), dtype=np.float)
@@ -40,5 +40,4 @@ def read_in_ascii_attributes(filename):
 #	    print 'Origin = (',geotransform[0], ',',geotransform[3],')'
 #		print 'Pixel Size = (',geotransform[1], ',',geotransform[5],')'
     return raster_data, x_size, y_size, NWx, NWy
-
 

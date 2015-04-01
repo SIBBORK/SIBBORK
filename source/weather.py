@@ -216,7 +216,7 @@ def PET(monthly_temp_mat, rad_raster_mat):
     total_energy = rad_raster_mat * 3600
     monthly_temp_mat[monthly_temp_mat<=0] = -3 #this will result in PET=0 for temps <=0C, at which PET should not be occuring
     PET_mat = (0.025 * (monthly_temp_mat + 3.0) * (total_energy))/(2430.0*10000.0)
-
+    #print "PET mat:", PET_mat[:,0]
     return PET_mat
 
 ##############################################################################

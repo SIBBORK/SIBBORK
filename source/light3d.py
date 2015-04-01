@@ -3,7 +3,7 @@ import math
 import numba
 
 @numba.jit
-def compute_3D_light_matrixV2(actual_leaf_area_3D_mat, 
+def compute_3D_light_matrix(actual_leaf_area_3D_mat, 
                             dem_offset_index_mat,
                             radiation_fraction_mat,  
                             x_size, y_size, z_size,
@@ -23,7 +23,7 @@ def compute_3D_light_matrixV2(actual_leaf_area_3D_mat,
     # source as well as the proportion of light that comes from that direction
     # Note : dx, dy, dz are float values
     for dx,dy,dz,proportion in list_of_grid_steps_and_proportion_tuples:
-        al_3D_mat = compute_3D_light_matrixV2_numba(actual_leaf_area_3D_mat, 
+        al_3D_mat = compute_3D_light_matrix_numba(actual_leaf_area_3D_mat, 
                                     dem_offset_index_mat,
                                     radiation_fraction_mat,  
                                     x_size, y_size, z_size,
@@ -32,7 +32,7 @@ def compute_3D_light_matrixV2(actual_leaf_area_3D_mat,
     return al_3D_mat
 
 @numba.jit(nopython=True)
-def compute_3D_light_matrixV2_numba(actual_leaf_area_3D_mat, 
+def compute_3D_light_matrix_numba(actual_leaf_area_3D_mat, 
                                     dem_offset_index_mat,
                                     radiation_fraction_mat,  
                                     x_size, y_size, z_size,
@@ -87,11 +87,11 @@ def compute_3D_light_matrixV2_numba(actual_leaf_area_3D_mat,
 
                         ## Option 1: ALA is very large when we hit a rock. This works to stop light from travelling through a rock,
                         ##            but causes valley shading when on the side of a mountain with wrap-around.
-                        #accumulated_leaf_area = 10e20 #comment in break; terrain breaks the ray trace, no light passes through, so total shade along this ray
-                        #break
+                        accumulated_leaf_area = 10e20 #comment in break; terrain breaks the ray trace, no light passes through, so total shade along this ray
+                        break
 
                         ## Option 2 : Ray stops when we hit a rock. This could lead to bright spots right next to the rock.
-                        break #if above two lines commented out: accumulate actual leaf area along ray trace until hit terrain, but
+                        #break #if above two lines commented out: accumulate actual leaf area along ray trace until hit terrain, but
 
                     # accumulate the leaf area at this location and account for the ray path length
                     actual_leaf_area_val = actual_leaf_area_3D_mat[ix,iy,iz]
