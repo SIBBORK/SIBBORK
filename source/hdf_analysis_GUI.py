@@ -161,6 +161,9 @@ def results(command, **kwargs):
     The coolest thing is that you can exclude small DBHs from the averaging by specifying the min_dbh value.
     'bv':  average total biovolume (m3/ha) per plot for each species, normalized to per hectare
            example: results('bv')
+           if interested only in certain areas, e.g. where warming of +2C was applied, specify mask
+           example: mask=(driver['elevation_lapse_rate_adjustment_matrix']==2)
+                    results('bv',mask=mask)
     'bm':  average total biomass (t/ha=Mg/ha) per plot for each species, normalized to per hectare
     'la':  average total leaf area (m2/ha) per plot for each species, normalized to per hectare
     'ba':  average total basal area (m2/ha) per plot for each species, normalized to per hectare
@@ -197,32 +200,38 @@ def results(command, **kwargs):
     else:
         print 'Invalid command :: results("%s")' % command
 
-def weather(command):
+def weather(command, **kwargs):
     """
     Check out the weather effects on vegetation through growing degree days and faction of growing season in drought (below wilting point).
     'gdd':  annual tally of growing degree days (above DDBASE specified in driver)
+           if interested only in certain areas, e.g. where warming of +2C was applied, specify mask
+           example: mask=(driver['elevation_lapse_rate_adjustment_matrix']==2)
+                    weather('gdd',mask=mask)
     'dry':  annual value for the fraction of the growing season during which soil moisture is at or below wilting point (15bar)
             example: weather('dry')
     """
-    def launch(command):
+    def launch(command, **kwargs):
         if command == 'gdd':
-            display_weather_degree_days()
+            display_weather_degree_days(**kwargs)
         elif command == 'dry':
-            display_weather_dry_days()
+            display_weather_dry_days(**kwargs)
     commands = ['gdd','dry',]
     if command == 'all':
         for cmd in commands:
-            launch(cmd)
+            launch(cmd, **kwargs)
     elif command in commands:
-        launch(command)
+        launch(command, **kwargs)
     else:
         print 'Invalid command :: weather("%s")' % command
 
-def factor(command):
+def factor(command, **kwargs):
     """
     Summary of how the different environmental factors have been effecting each species each year of the simulation.
     'ddf':  value 0 to 1. Growing degree days (above DDBASE specified in driver) are a plot-wide parameter. Trees are affected on a per-species basis (mostly depends on DDMIN requirement).
             example: factor('ddf')
+           if interested only in certain areas, e.g. where warming of +2C was applied, specify mask
+           example: mask=(driver['elevation_lapse_rate_adjustment_matrix']==2)
+                    factor('ddf',mask=mask)
     'smf':  value 0 to 1. Soil moisture is a simulation-wide parameter, same soil type is assumed across the entire simulation area, so same field capacity and wilting point. However,
             different species are affected differently by the soil moisture based on drought tolerances set in driver.
     'sff':  value 0 to 1. soil fertility is set by site index at the plot-level. Different species have different soil nutrition requirements, as set in the driver. When the possible annual
@@ -232,23 +241,23 @@ def factor(command):
             and then averaged across the canopy of each tree. Then, it is scaled by the tree's shade tolerance class set in the driver.
     'growth':  value 0 to 1. This is the overall environmental effect on tree growth = alf*ddf*min(smf,sff), however, sff is only limiting if other factors are not as limiting (see sff doc string)
     """
-    def launch(command):
+    def launch(command, **kwargs):
         if command == 'ddf':
-            display_factor_growing_degree_days()
+            display_factor_growing_degree_days(**kwargs)
         elif command == 'smf':
-            display_factor_soil_moisture()
+            display_factor_soil_moisture(**kwargs)
         elif command == 'sff':
-            display_factor_soil_fertility()
+            display_factor_soil_fertility(**kwargs)
         elif command == 'alf':
-            display_factor_available_light()
+            display_factor_available_light(**kwargs)
         elif command == 'growth':
-            display_factor_growth()
+            display_factor_growth(**kwargs)
     commands = ['ddf','smf','sff','alf','growth']
     if command == 'all':
         for cmd in commands:
-            launch(cmd)
+            launch(cmd, **kwargs)
     elif command in commands:
-        launch(command)
+        launch(command, **kwargs)
     else:
         print 'Invalid command :: factor("%s")' % command
 
@@ -276,29 +285,33 @@ def spatial(command):
     else:
         print 'Invalid command :: spatial("%s")' % command
 
-def scatter(command):
+def scatter(command, **kwargs):
     """
     Animates how the different environmental factors change for each species over time.
     'ddf':  Ddegree days factor is the same for all individuals of a given species for simulation on flat terrain. In complex terrain, this represents the spatial average for the species.
+            example: scatter('ddf')
+            if interested only in certain areas, e.g. where warming of +2C was applied, specify mask
+            example: mask=(driver['elevation_lapse_rate_adjustment_matrix']==2)
+                     scatter('ddf',mask=mask)
     'smf':  Soil moisture factor is the same for all individuals of a given species in the simulation while no runon is implemented.
     'sff':  Soil fertility factor is the same for all individual of a given species within a site index block. Across a gradient, this represents the spatial average for the species.
     'alf':  CANNOT BE IMPLEMENTED, because the available light factor is on a per-tree basis and depends on where the tree is in the canopy. An average of this for a species would make no sense,
             because trees of the same species may be experiencing extremely different conditions within the canopy even though the have the same tolerances.
     """
-    def launch(command):
+    def launch(command, **kwargs):
         if command == 'ddf':
-            display_scatter_factor_growing_degree_days()
+            display_scatter_factor_growing_degree_days(**kwargs)
         elif command == 'smf':
-            display_scatter_factor_soil_moisture()
+            display_scatter_factor_soil_moisture(**kwargs)
         elif command == 'sff':
-            display_scatter_factor_soil_fertility()
+            display_scatter_factor_soil_fertility(**kwargs)
     commands = ['ddf','smf','sff']
     if command == 'all':
         for cmd in commands:
-            launch(cmd)
+            launch(cmd, **kwargs)
         timer.start(200)
     elif command in commands:
-        launch(command)
+        launch(command, **kwargs)
         timer.start(200)
     else:
         print 'Invalid command :: scatter("%s")' % command
@@ -802,10 +815,10 @@ def display_swarm_biovolume(title='Swarm Histogram of Biovolume',
     callback_obj = AnimationCallback(years_to_run_list, update)
     timer_calls.append(callback_obj)
 
-def display_results_biovolume(min_dbh=0.0, **kwargs):
+def display_results_biovolume(min_dbh=0.0, mask=None, **kwargs):  #default: if no min_dbh is specified, all trees will be included; is no mask is specified, output from all plots will be shown
     years_in_sim_lst, \
     year_agg_mat, \
-    num_species = compute_results_biovolume(h5file, driver, min_dbh)
+    num_species = compute_results_biovolume(h5file, driver, min_dbh, mask)
 
     def sum_by_year(mat):
         return np.sum(mat, axis=0)
@@ -822,10 +835,10 @@ def display_results_biovolume(min_dbh=0.0, **kwargs):
 
 
 
-def display_results_biomass(min_dbh=0.0, **kwargs):
+def display_results_biomass(min_dbh=0.0, mask=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
-    num_species = compute_results_biomass(h5file, driver, min_dbh)
+    num_species = compute_results_biomass(h5file, driver, min_dbh, mask)
 
     def sum_by_year(mat):
         return np.sum(mat, axis=0)
@@ -841,10 +854,10 @@ def display_results_biomass(min_dbh=0.0, **kwargs):
                             total_name='Sum All')
 
 
-def display_results_leaf_area(min_dbh=0.0, **kwargs):
+def display_results_leaf_area(min_dbh=0.0, mask=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
-    num_species = compute_results_leaf_area(h5file, driver, min_dbh)
+    num_species = compute_results_leaf_area(h5file, driver, min_dbh, mask)
 
     display_results_vs_time(title='Simulated Leaf Area  (min_dbh=%.1f)' % min_dbh,
                             bottom_label='Year',
@@ -855,10 +868,10 @@ def display_results_leaf_area(min_dbh=0.0, **kwargs):
 
 # TODO: foliar biomass
 
-def display_results_basal_area(min_dbh=0.0, **kwargs):
+def display_results_basal_area(min_dbh=0.0, mask=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
-    num_species = compute_results_basal_area(h5file, driver, min_dbh)
+    num_species = compute_results_basal_area(h5file, driver, min_dbh, mask)
 
     def sum_by_year(mat):
         return np.sum(mat, axis=0)
@@ -874,10 +887,10 @@ def display_results_basal_area(min_dbh=0.0, **kwargs):
                             total_name='Sum All')
 
 
-def display_results_stems(min_dbh=0.0, **kwargs):
+def display_results_stems(min_dbh=0.0, mask=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
-    num_species = compute_results_stems(h5file, driver, min_dbh)
+    num_species = compute_results_stems(h5file, driver, min_dbh, mask)
 
     display_results_vs_time(title='Simulated Number of Stems (min_dbh=%.1f)' % min_dbh,
                             bottom_label='Year',
@@ -888,10 +901,10 @@ def display_results_stems(min_dbh=0.0, **kwargs):
                             expected_values_key='EXPECTED_STEMS')
 
 
-def display_results_average_dbh(min_dbh=0.0, **kwargs):
+def display_results_average_dbh(min_dbh=0.0, mask=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
-    num_species = compute_results_average_dbh(h5file, driver, min_dbh)
+    num_species = compute_results_average_dbh(h5file, driver, min_dbh, mask)
 
     def max_by_year(mat):
         return np.max(mat, axis=0)
@@ -907,10 +920,10 @@ def display_results_average_dbh(min_dbh=0.0, **kwargs):
                             total_name='Max All')
 
 
-def display_results_average_height(min_dbh=0.0, **kwargs):
+def display_results_average_height(min_dbh=0.0, mask=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
-    num_species = compute_results_average_height(h5file, driver, min_dbh)
+    num_species = compute_results_average_height(h5file, driver, min_dbh, mask)
 
     def max_by_year(mat):
         return np.max(mat, axis=0)
@@ -925,10 +938,10 @@ def display_results_average_height(min_dbh=0.0, **kwargs):
                             total_fn=None, #max_by_year,
                             total_name='Max All')
 
-def display_results_loreys_height(min_dbh=0.0, **kwargs):
+def display_results_loreys_height(min_dbh=0.0, mask=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
-    num_species = compute_results_loreys_height(h5file, driver, min_dbh)
+    num_species = compute_results_loreys_height(h5file, driver, min_dbh, mask)
 
     display_results_vs_time(title="Lorey's Height (min_dbh=%.1f)" % min_dbh,
                             bottom_label='Year',
@@ -990,22 +1003,25 @@ def display_results_vs_time(title,
     plot.show()
 
 
-def display_weather_dry_days():
+def display_weather_dry_days(mask=None, **kwargs):
     display_weather_vs_time(title='Relative Dry Days Over Time',
                             bottom_label='Year',
                             left_label='Relative Dry Days',
-                            group_name='RelativeDryDays')
+                            group_name='RelativeDryDays',
+                            mask=mask)
 
-def display_weather_degree_days():
+def display_weather_degree_days(mask=None, **kwargs):   #one value per plot
     display_weather_vs_time(title='Degree Days Over Time',
                             bottom_label='Year',
                             left_label='Degree Days',
-                            group_name='DegreeDays')
+                            group_name='DegreeDays',
+                            mask=mask)
 
 def display_weather_vs_time(title,
                             bottom_label,
                             left_label,
-                            group_name):
+                            group_name,
+                            mask):
     print 'opening ', title
     # create the window that the swarm will be plotted to
     plot = pg.plot(title=title)   ## create an empty plot widget
@@ -1018,37 +1034,41 @@ def display_weather_vs_time(title,
         year_str = '%.4d' % year
         # pull the current year matrix from the hdf file
         stored_matrix = np.array(h5file[group_name][year_str])
-        avg_val = np.mean(stored_matrix)
+        avg_val = np.mean(stored_matrix[mask]) #this works even with None! Go Numpy!
         weather_vec[index] = avg_val
 
     curve = plot.plot(years_in_sim_lst, weather_vec)
     plot.show()
     print 'Simulation Average over Time = %s' %(np.mean(weather_vec))
 
-def display_factor_growing_degree_days():
+def display_factor_growing_degree_days(mask=None, **kwargs):
     display_factor_type1(title='Average Growing Degree Day Factor',
                          bottom_label='Year',
                          left_label='Degree Days Factor (0 to 1)',
-                         group_name='GrowingDegreeDaysFactor')
+                         group_name='GrowingDegreeDaysFactor',
+                         mask=mask)
 
-def display_factor_soil_moisture():
+def display_factor_soil_moisture(mask=None, **kwargs):
     display_factor_type1(title='Average Soil Moisture Factor',
                          bottom_label='Year',
                          left_label='Soil Moisture Factor (0 to 1)',
-                         group_name='SoilMoistureFactor')
+                         group_name='SoilMoistureFactor',
+                         mask=mask)
 
-def display_factor_soil_fertility():
+def display_factor_soil_fertility(mask=None, **kwargs):
     display_factor_type1(title='Average Soil Fertility Factor',
                          bottom_label='Year',
                          left_label='Soil Fertility Factor (0 to 1)',
-                         group_name='SoilFertilityFactor')
+                         group_name='SoilFertilityFactor',
+                         mask=mask)
 
 
 # type 1 factor expect nx,ny,nspp matrices stored in the hdf file
 def display_factor_type1(title,
                          bottom_label,
                          left_label,
-                         group_name):
+                         group_name,
+                         mask):
     print 'opening ', title
     # create the window that the swarm will be plotted to
     plot = pg.plot(title=title)   ## create an empty plot widget
@@ -1070,7 +1090,8 @@ def display_factor_type1(title,
         for current_species_code in range(num_species):
             species_name = driver['species_code_to_name'][current_species_code]
             # get all of the factor values for the species code of interest
-            factor_mat = factor_matrix[:,:,current_species_code]
+            ##factor_mat = factor_matrix[:,:,current_species_code]
+            factor_mat = factor_matrix[mask][:,current_species_code]
             # compute the average factor for this species on this year
             year_avg = np.mean( factor_mat )
             # store the avg for this species and this year
@@ -1081,15 +1102,15 @@ def display_factor_type1(title,
         # plot this species' value
         # pull any nans out of the data
         data_vec = year_avgs_mat[current_species_code]
-        mask = ~np.isnan(data_vec)
-        ydata_vec = data_vec[mask]
-        xdata_vec = np.array(years_in_sim_lst)[mask]
+        nanmask = ~np.isnan(data_vec)
+        ydata_vec = data_vec[nanmask]
+        xdata_vec = np.array(years_in_sim_lst)[nanmask]
         curve = plot.plot(xdata_vec, ydata_vec, pen=colors[current_species_code], name=species_name)
 
     plot.show()
 
 
-def display_factor_available_light():
+def display_factor_available_light(mask=None, **kwargs):
     ## height < 6m
     class1_min_height = 0.
     class1_max_height = 6.
@@ -1099,7 +1120,8 @@ def display_factor_available_light():
                          group_name='AvailableLightFactor',
                          filter_by_height=True,
                          min_height=class1_min_height,
-                         max_height=class1_max_height)
+                         max_height=class1_max_height,
+                         mask=mask)
     ## 6m >= height < 18m
     class2_min_height = 6.
     class2_max_height = 18.
@@ -1109,7 +1131,8 @@ def display_factor_available_light():
                          group_name='AvailableLightFactor',
                          filter_by_height=True,
                          min_height=class2_min_height,
-                         max_height=class2_max_height)
+                         max_height=class2_max_height,
+                         mask=mask)
     ## height > 18m
     class3_min_height = 18.
     class3_max_height = 1e6
@@ -1119,19 +1142,22 @@ def display_factor_available_light():
                          group_name='AvailableLightFactor',
                          filter_by_height=True,
                          min_height=class3_min_height,
-                         max_height=class3_max_height)
+                         max_height=class3_max_height,
+                         mask=mask)
     
-def display_factor_growth():
+def display_factor_growth(mask=None, **kwargs):
     display_factor_type2(title='Average Growth Factor',
                          bottom_label='Year',
                          left_label='Growth Factor (0 to 1)',
-                         group_name='GrowthFactor')
+                         group_name='GrowthFactor',
+                         mask=mask)
 
 # type 2 factor expect nx,ny,ntree matrices stored in the hdf file
 def display_factor_type2(title,
                          bottom_label,
                          left_label,
                          group_name,
+                         mask,
                          filter_by_height=False,
                          min_height=None,
                          max_height=None):
@@ -1156,6 +1182,8 @@ def display_factor_type2(title,
         dbh_matrix = np.array(h5file['DBH'][year_str])
         # pull the current year species code matrix from the hdf file
         species_code_matrix = np.array(h5file['SpeciesCode'][year_str])
+        if mask is not None:  #this is a hack
+            species_code_matrix[np.logical_not(mask)] = -1  #set spp code for trees on plots that don't satisfy mask criteria to -1 (no tree); tree-level values are computed only w/in masked area
 
         for current_species_code in range(num_species):
             if filter_by_height:
@@ -1191,9 +1219,9 @@ def display_factor_type2(title,
                 # plot this species' value
                 # pull any nans out of the data
                 data_vec = year_avgs_mat[current_species_code]
-                mask = ~np.isnan(data_vec)
-                ydata_vec = data_vec[mask]
-                xdata_vec = np.array(years_in_sim_lst)[mask]
+                nanmask = ~np.isnan(data_vec)
+                ydata_vec = data_vec[nanmask]
+                xdata_vec = np.array(years_in_sim_lst)[nanmask]
                 curve = plot.plot(xdata_vec, ydata_vec, pen=colors[current_species_code], name=species_name)
 
     plot.show()
@@ -1332,24 +1360,28 @@ def display_spatial_max_height(title='Tree with maximum height in each plot'):
     callback_obj = AnimationCallback(years_to_run_list, update)
     timer_calls.append(callback_obj)
 
-def display_scatter_factor_growing_degree_days():
+def display_scatter_factor_growing_degree_days(mask=None):
     return display_scatter_over_plot(plot_underlay_fn=display_equation_degree_day_factor,
                                      factor_group_name='GrowingDegreeDaysFactor',
-                                     input_group_name='DegreeDays')
+                                     input_group_name='DegreeDays',
+                                     mask=mask)
 
-def display_scatter_factor_soil_moisture():
+def display_scatter_factor_soil_moisture(mask=None):
     return display_scatter_over_plot(plot_underlay_fn=display_equation_soil_moisture_factor,
                                      factor_group_name='SoilMoistureFactor',
-                                     input_group_name='RelativeDryDays')
+                                     input_group_name='RelativeDryDays',
+                                     mask=mask)
 
-def display_scatter_factor_soil_fertility():
+def display_scatter_factor_soil_fertility(mask=None):
     return display_scatter_over_plot(plot_underlay_fn=display_equation_soil_fertility_factor,
                                      factor_group_name='SoilFertilityFactor',
-                                     input_group_name='RelativeSoilFertility')
+                                     input_group_name='RelativeSoilFertility',
+                                     mask=mask)
 
 def display_scatter_over_plot(plot_underlay_fn,
                               factor_group_name,
-                              input_group_name):
+                              input_group_name,
+                              mask):
     global timer_calls
     print 'scatter : ',
     # plot the basic curve of the factor (x-axis is growing degree days, y-axis is computed factor)
@@ -1367,12 +1399,16 @@ def display_scatter_over_plot(plot_underlay_fn,
         # pull the current year factor matrix from the hdf file
         factor_matrix = np.array(h5file[factor_group_name][year_str])  # size: nx,ny,nspp
         # pull the growing degree days for this year
-        growing_degree_days_vec = np.array(h5file[input_group_name][year_str]).reshape(-1)
+        ##growing_degree_days_vec = np.array(h5file[input_group_name][year_str]).reshape(-1)  #initially size:nx,ny, then reshaped to 1D vec nx*ny
+        growing_degree_days_vec = np.array(h5file[input_group_name][year_str])[mask].reshape(-1)
 
         for current_species_code in range(num_species):
             species_name = driver['species_code_to_name'][current_species_code]
             # get all of the factor values for the species code of interest
-            factor_vec = factor_matrix[:,:,current_species_code].reshape(-1)
+            if mask is None:
+                factor_vec = factor_matrix[:,:,current_species_code].reshape(-1)  #works
+            else:
+                factor_vec = factor_matrix[mask][:,current_species_code].reshape(-1)
             # scatter plot on top of the existing lines
             scatter_plots[current_species_code].setData(growing_degree_days_vec, factor_vec)
         plot.setTitle('year : %s' % (year))
@@ -1415,13 +1451,13 @@ def main():
 
     command_info =  '\nCustom commands:\n'
     #command_info += "  display('DEM' | '?')\n"
-    command_info += "  swarm('dbh' | 'bv' | 'rsf' | 'ht' |)\n"
+    command_info += "  swarm('dbh' | 'bv' | 'rsf' | 'ht')\n"
     command_info += "  equation('ht' | 'bv' | 'bm' | 'la' | 'ba' | 'oi' | 'sff' | 'smf' | 'alf' | 'ddf' | 'all')\n"
-    command_info += "  results('bv' | 'bm' | 'la' | 'ba' | 'stems' | 'dbh' | 'ht' | 'lht' | 'all', min_dbh=0)\n"
-    command_info += "  weather('gdd' | 'dry' )\n"
-    command_info += "  factor('sff' | 'smf' | 'alf' | 'ddf' | 'growth' | 'all')\n"
+    command_info += "  results('bv' | 'bm' | 'la' | 'ba' | 'stems' | 'dbh' | 'ht' | 'lht' | 'all', min_dbh=0, mask)\n"
+    command_info += "  weather('gdd' | 'dry', mask)\n"
+    command_info += "  factor('sff' | 'smf' | 'alf' | 'ddf' | 'growth' | 'all', mask)\n"
     command_info += "  spatial('ht' | 'all')\n"
-    command_info += "  scatter('sff' | 'smf' | 'alf' | 'ddf' | 'all')\n"
+    command_info += "  scatter('sff' | 'smf' | 'alf' | 'ddf' | 'all', mask)\n"
     command_info += "  make_raster('spp' | 'lht' | 'bm' | 'all', year, raster_filename)\n"   #spp = species code of the tree with the largest biomass on the plot. Need to specify year.
 
 ## TODO : 

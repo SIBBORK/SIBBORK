@@ -89,46 +89,50 @@ def load_driver(hdf_filename, vectorize=None):
     return driver, h5file, info
 
 
-def compute_results_biovolume(h5file, driver, min_dbh=0.0):
+def compute_results_biovolume(h5file, driver, min_dbh=0.0, mask=None):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_vs_time(h5file, driver,
                                           fn_key='BIOVOLUME_EQUATION',
                                           normalize_value=driver['sim_area_ha'],
-                                          min_dbh=min_dbh,)
+                                          min_dbh=min_dbh,
+                                          mask=mask)
     return years_in_sim_lst, year_agg_mat, num_species
 
-def compute_results_biomass(h5file, driver, min_dbh=0.0):
+def compute_results_biomass(h5file, driver, min_dbh=0.0, mask=None):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_vs_time(h5file, driver,
                                           fn_key='BIOMASS_EQUATION',
                                           normalize_value=driver['sim_area_ha'],
-                                          min_dbh=min_dbh,)
+                                          min_dbh=min_dbh,
+                                          mask=mask)
     return years_in_sim_lst, year_agg_mat, num_species
 
-def compute_results_leaf_area(h5file, driver, min_dbh=0.0):
+def compute_results_leaf_area(h5file, driver, min_dbh=0.0, mask=None):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_vs_time(h5file, driver,
                                           fn_key='LEAF_AREA_EQUATION',
                                           normalize_value=driver['sim_area_ha'],
-                                          min_dbh=min_dbh,)
+                                          min_dbh=min_dbh,
+                                          mask=mask)
     return years_in_sim_lst, year_agg_mat, num_species
 
 # TODO: foliar biomass
 
-def compute_results_basal_area(h5file, driver, min_dbh=0.0):
+def compute_results_basal_area(h5file, driver, min_dbh=0.0, mask=None):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_vs_time(h5file, driver,
                                           fn_key='BASAL_AREA_EQUATION',
                                           normalize_value=driver['sim_area_ha'],
-                                          min_dbh=min_dbh,)
+                                          min_dbh=min_dbh,
+                                          mask=mask)
     return years_in_sim_lst, year_agg_mat, num_species
 
 
-def compute_results_stems(h5file, driver, min_dbh=0.0):
+def compute_results_stems(h5file, driver, min_dbh=0.0, mask=None):
     def count_stems_fn(dbh_vec):
         return np.count_nonzero(dbh_vec)
 
@@ -137,11 +141,12 @@ def compute_results_stems(h5file, driver, min_dbh=0.0):
     num_species = compute_results_vs_time(h5file, driver,
                                           func=count_stems_fn,
                                           normalize_value=driver['sim_area_ha'],
-                                          min_dbh=min_dbh,)
+                                          min_dbh=min_dbh,
+                                          mask=mask)
     return years_in_sim_lst, year_agg_mat, num_species
 
 
-def compute_results_average_dbh(h5file, driver, min_dbh=0.0):
+def compute_results_average_dbh(h5file, driver, min_dbh=0.0, mask=None):
     def avg_dbh_fn(dbh_vec):
         if np.any(dbh_vec):
             return np.mean(dbh_vec)
@@ -154,29 +159,33 @@ def compute_results_average_dbh(h5file, driver, min_dbh=0.0):
                                           func=avg_dbh_fn,
                                           aggregate_fn=np.mean,
                                           normalize_value=1.0,
-                                          min_dbh=min_dbh,)
+                                          min_dbh=min_dbh,
+                                          mask=mask)
     return years_in_sim_lst, year_agg_mat, num_species
 
 
-def compute_results_average_height(h5file, driver, min_dbh=0.0):
+def compute_results_average_height(h5file, driver, min_dbh=0.0, mask=None):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_vs_time(h5file, driver,
                                           fn_key='TREE_HEIGHT_EQUATION',
                                           aggregate_fn=np.mean,
                                           normalize_value=1.0,
-                                          min_dbh=min_dbh,)
+                                          min_dbh=min_dbh,
+                                          mask=mask)
     return years_in_sim_lst, year_agg_mat, num_species
 
 
-def compute_results_loreys_height(h5file, driver, min_dbh=0.0):
+def compute_results_loreys_height(h5file, driver, min_dbh=0.0, mask=None):
 
     """
     Compute Lorey's mean height and return a time series by species.
 
-    Parameters : h5file -- 
-                 driver --
+    Parameters : h5file -- storage of model output by year, plot, species, tree
+                 driver -- dictionary containing initial conditions, site & species-specific parameters
                  min_dbh -- only use trees with a dbh larger than this value
+                 mask -- T/F array (DEM.shape) to select plots from which results should be computed, 
+                         e.g. from where site index = 4, temperature adjustment = +2C
 
     Returns : years_in_sim_lst -- list of the years in the simulation: size: nyears
               year_agg_mat -- the aggregate results by year and species: size: nspp,nyears
@@ -195,6 +204,8 @@ def compute_results_loreys_height(h5file, driver, min_dbh=0.0):
         dbh_matrix = np.array(h5file['DBH'][year_str])
         # pull the current year species code matrix from the hdf file
         species_code_matrix = np.array(h5file['SpeciesCode'][year_str])
+        if mask is not None:  #this is a hack
+            species_code_matrix[np.logical_not(mask)] = -1  #set spp code for trees on plots that don't satisfy mask criteria to -1 (no tree); tree-level values are computed only w/in masked area
 
         for current_species_code in range(num_species):
             species_name = driver['species_code_to_name'][current_species_code]
@@ -222,6 +233,7 @@ def compute_results_loreys_height(h5file, driver, min_dbh=0.0):
 def compute_results_vs_time(h5file, driver,
                             normalize_value,
                             min_dbh,
+                            mask,
                             fn_key=None,
                             func=None,
                             aggregate_fn=None):
@@ -230,6 +242,7 @@ def compute_results_vs_time(h5file, driver,
 
     Parameters : normalize_value -- the yearly accumulated values will be divided by this number
                  min_dbh -- only use trees with a dbh larger than this value
+                 mask -- T/F array (DEM.shape) to select plots from which results should be computed, e.g. from where site index = 4, temperature adjustment = +2C
                  fn_key -- [default: None] the key name of the species specific equation that will compute values from dbh
                  func -- [default: None] a custom function that will be called with a vector of dbh
                  aggregate_fn -- [default: np.sum] the aggregate function; could be sum, mean, etc..
@@ -248,10 +261,12 @@ def compute_results_vs_time(h5file, driver,
 
     for index, year in enumerate(years_in_sim_lst):
         year_str = '%.4d' % year
-        # pull the current year dbh matrix from the hdf file
+        # pull the current year dbh matrix from the hdf file (size: nx,ny,ntrees)
         dbh_matrix = np.array(h5file['DBH'][year_str])
-        # pull the current year species code matrix from the hdf file
+        # pull the current year species code matrix from the hdf file (size: nx,ny,ntrees)
         species_code_matrix = np.array(h5file['SpeciesCode'][year_str])
+        if mask is not None:  #this is a hack
+            species_code_matrix[np.logical_not(mask)] = -1  #set spp code for trees on plots that don't satisfy mask criteria to -1 (no tree); tree-level values are computed only w/in masked area
 
         for current_species_code in range(num_species):
             species_name = driver['species_code_to_name'][current_species_code]
