@@ -414,6 +414,71 @@ def bragg_optimal_growth_increment(A, B, C, multiplier):  #factory
     return numba_fix(bragg_optimal_growth_increment_innerfn)
 ########### end optimal increment functions ############
 
+
+############### historical climate function ###############
+def return_historical_weather(year):
+    """
+    Inputs:  year -- current year of sim (integer)
+    Returns:  XT -- vector of 12 average monthly temperatures (deg C) (changed during climate change scenarios)
+              VT -- vector of 12 standard deviations for monthly temperatures (deg C) (not changed)
+              XR -- vector of 12 average monthly precipitation sums (cm) (changed during climate change scenarios)
+              VR -- vector of 12 standard deviations for monthly precipitation sums (cm) (not changed)
+    """
+    XT = np.array([-20.53, -18.9, -10.13, 0.30, 8.55, 15.51, 18.66, 15.18, 7.92, -0.12, -10.60, -18.04])
+    VT = np.array([10.17,   9.08,   7.36, 5.2,  4.97,  4.17,  2.98,  3.36, 3.82,  5.2,    8.6,   10.02])
+    XR = np.array([2.05, 1.49, 1.47, 2.21,  3.86,  4.83,  6.09,  6.20,  4.45, 3.66, 3.49, 2.49])
+    VR = np.array([0.94, 0.81, 1.09, 1.16,  1.57,  2.35,  3.04,  3.14,  2.05, 1.78, 1.41, 1.97])
+    return XT, VT, XR, VR
+############# end historical climate function #############
+
+
+############### warming climate function ###############
+def return_warming_weather(year):
+    """
+    Inputs:  year -- current year of sim (integer)
+    Returns:  XT -- vector of 12 average monthly temperatures (deg C) (changed during climate change scenarios)
+              VT -- vector of 12 standard deviations for monthly temperatures (deg C) (not changed)
+              XR -- vector of 12 average monthly precipitation sums (cm) (changed during climate change scenarios)
+              VR -- vector of 12 standard deviations for monthly precipitation sums (cm) (not changed)
+    """
+    XT = np.array([-20.53, -18.9, -10.13, 0.30, 8.55, 15.51, 18.66, 15.18, 7.92, -0.12, -10.60, -18.04])
+    VT = np.array([10.17,   9.08,   7.36, 5.2,  4.97,  4.17,  2.98,  3.36, 3.82,  5.2,    8.6,   10.02])
+    XR = np.array([2.05, 1.49, 1.47, 2.21,  3.86,  4.83,  6.09,  6.20,  4.45, 3.66, 3.49, 2.49])
+    VR = np.array([0.94, 0.81, 1.09, 1.16,  1.57,  2.35,  3.04,  3.14,  2.05, 1.78, 1.41, 1.97])
+
+    warming_start_year = 200
+    warming_stop_year = 260
+
+    def equation_factory(slope,historical_temp):
+        """
+        Inputs:  slope -- the rate of temeprature increase (degC/year)
+                 historical_temp -- monthly average temperatures from WMO station(s) for the time frame 1955-2000 (can be shortened);
+                                    these are the monthly averages used to generate weather if no climate change is implemented
+        Returns: fn -- y=mx+b function for warming, where m is the rate of temperature increase, and b is the historical temperature for that month
+                       x here is actually (current_year - warming_start_year)
+        """
+        def fn(year):
+            return slope*(year-warming_start_year)+historical_temp
+        return fn
+
+    slope_lst =            [0.015, 0.015,  0.058, 0.058, 0.058, 0.042, 0.042, 0.042, 0.050, 0.050,  0.050,  0.015]  #avg seasonal trends
+    historical_temp_lst = [-20.53, -18.9, -10.13,  0.30,  8.55, 15.51, 18.66, 15.18, 7.92,  -0.12, -10.60, -18.04]  #historical temp = start temp (1955-2000, but maybe should be 1955-1980?)
+    warming_functions_lst = [ equation_factory(slope,historical_temp) for slope,historical_temp in zip(slope_lst,historical_temp_lst) ]
+
+    #implement warming during a timeframe of the simulation defined by a warming_start_year and warming_stop_year
+    #this is piece-wise climate change, keeping the climate aligned with historical averages up until warming_start_year
+    if year < warming_start_year:
+        return XT, VT, XR, VR
+    #begin warming by a rate set in the slope_lst (this can be seasonal or monthly, or all the same)
+    elif year >= warming_start_year and year <= warming_stop_year:
+        warmingXT = [ monthly_warming_function(year) for monthly_warming_function in warming_functions_lst ]
+        return warmingXT, VT, XR, VR
+    #stop warming and stay at the new elevated temperature
+    elif year > warming_stop_year:
+        warmedXT = [ monthly_warming_function(warming_stop_year) for monthly_warming_function in warming_functions_lst ]
+        return warmedXT, VT, XR, VR
+############## end warming climate function #############
+
 ####################################################
 #             BEGIN driver dictionary              #
 ####################################################
@@ -466,15 +531,15 @@ This simulation contains all 10 boreal tree species.
 "MAX_TREE_HEIGHT":50,         
 
 "XT_VT_XR_VR_doc":"QAed temps, 2/3stdevs; XT=avg monthly temp in degrees C; VT=std for monthly temps; XR=average monthly sums of precip in cm; VR=std for monthly precip; maxT=max daily temp obs over 50+ yrs of WMO data record",
-"XT": np.array([-20.53, -18.9, -10.13, 0.30, 8.55, 15.51, 18.66, 15.18, 7.92, -0.12, -10.60, -18.04]),
-#"VT": [  0.,     0.,    0.,   0.,   0.,    0.,    0.,    0.,   0.,    0.,     0.,     0., ],
-"VT": [10.17,   9.08,   7.36, 5.2,  4.97,  4.17,  2.98,  3.36, 3.82,  5.2,    8.6,   10.02],
-#"maxT": [5.7,   8.1,    13.5, 27.8, 33.4,  34.4,  34.9,  34.4, 32.1,  22.9,   13.6,   6.1],  # max temperature of daily max by month
+#"XT": np.array([-20.53, -18.9, -10.13, 0.30, 8.55, 15.51, 18.66, 15.18, 7.92, -0.12, -10.60, -18.04]),
+##"VT": [  0.,     0.,    0.,   0.,   0.,    0.,    0.,    0.,   0.,    0.,     0.,     0., ],
+#"VT": [10.17,   9.08,   7.36, 5.2,  4.97,  4.17,  2.98,  3.36, 3.82,  5.2,    8.6,   10.02],
+##"maxT": [5.7,   8.1,    13.5, 27.8, 33.4,  34.4,  34.9,  34.4, 32.1,  22.9,   13.6,   6.1],  # max temperature of daily max by month
 "maxT": [  2.76,  2.125,  4.9,   14.68, 23.67, 26.65, 26.9, 24.8, 18.6,  15.5,   5.87,  2.13],         # max temperature of daily means by month
 "minT": [-48.6, -42.67, -36.36, -25.1,  -5.97,  2.7,   9.58, 5.2, -2.5, -22.0, -37.0, -48.2],          # min temperature of daily means by month
-"XR": [2.05, 1.49, 1.47, 2.21,  3.86,  4.83,  6.09,  6.20,  4.45, 3.66, 3.49, 2.49],
-#"VR": [0.,   0.,   0.,   0.,    0.,    0.,    0.,    0.,    0.,   0.,   0.,   0., ],
-"VR": [0.94, 0.81, 1.09, 1.16,  1.57,  2.35,  3.04,  3.14,  2.05, 1.78, 1.41, 1.97],
+#"XR": [2.05, 1.49, 1.47, 2.21,  3.86,  4.83,  6.09,  6.20,  4.45, 3.66, 3.49, 2.49],
+##"VR": [0.,   0.,   0.,   0.,    0.,    0.,    0.,    0.,    0.,   0.,   0.,   0., ],
+#"VR": [0.94, 0.81, 1.09, 1.16,  1.57,  2.35,  3.04,  3.14,  2.05, 1.78, 1.41, 1.97],
 
 "AvgRadiation":[16.75, 51.84, 111.74, 179.89, 207.65, 236.91, 224.50, 264.02, 102.64, 47.59, 22.16, 10.00],
 "StdRadiation":[1.49,  4.60,  8.94,  15.3,  19.33,  22.21,  23.34,  21.77,  18.08,  6.40,  2.88,  1.01],

@@ -101,8 +101,8 @@ def StartSimulation(driver_filename, output_filename, driver):
         # generate weather:
         monthly_temp_mat_lst, \
         initial_soil_water_mat, \
-        GDD_matrix, drydays_fraction_mat = generate_weather(driver, initial_soil_water_mat)
-        if year==600:
+        GDD_matrix, drydays_fraction_mat = generate_weather(driver, initial_soil_water_mat, year)
+        if year==10:
             print "GDD mat=", GDD_matrix[:,0]
         # kill trees (stressed trees from previous years get to fear for their lives and some may die)
         DBH_matrix, stress_flag_matrix, \
@@ -427,7 +427,7 @@ def initialization(driver_filename, output_filename, driver):
 
 
 
-def generate_weather(driver, initial_soil_water_mat):
+def generate_weather(driver, initial_soil_water_mat, year):
     """
     Generate average monthly temperatures and precipitation sums from avg and std values provided in driver file from 
     historical data.
@@ -435,23 +435,24 @@ def generate_weather(driver, initial_soil_water_mat):
     Parameters: driver -- a driver "dictionary" that contains all of the driver information and values can be called by keys
                 intial_soil_water_mat -- initialized at field capacity (FC) to start the simulation off with sufficient
                                          soil moisture
-
+                year -- current simulation year (integer)
 
     Returns:    soil_moisture_mat --     a fraction 0 to 1 of soil moisture on each plot based on precip sim and PET calc;
                                          PET is temp & readiation-based
                 GDD_matrix --            a matrix the size of the sim grid of accumulated growing degrees over this year in sim
                 drydays_fraction_mat -- the fraction 0 to 1 of the growing season in drought
     """
+    temperature_avg_vec, temperature_std_vec, rain_avg_vec, rain_std_vec = driver['return_annual_weather_function'](year)
+
     GDD_matrix, \
     monthly_temp_mat_lst, \
-    total_growing_season_mat = GrowingDegreeDays_calc(ddbase = driver["DDBASE"], monthly_temperature_avgs_lst = driver["XT"], 
-                                                      monthly_temperature_stds_lst = driver["VT"], 
+    total_growing_season_mat = GrowingDegreeDays_calc(ddbase = driver["DDBASE"], monthly_temperature_avgs_lst = temperature_avg_vec, 
+                                                      monthly_temperature_stds_lst = temperature_std_vec, 
                                                       monthly_temperature_mins_lst = driver["minT"],
                                                       monthly_temperature_maxs_lst = driver["maxT"],
                                                       lapse_rate_adj_mat = driver['elevation_lapse_rate_adjustment_matrix'])
-
     # simulate random precipitation
-    monthly_sim_rain_vec = rain_sim(rainfall_monthly_avgs = driver['XR'], rainfall_monthly_stds = driver['VR'])
+    monthly_sim_rain_vec = rain_sim(rainfall_monthly_avgs = rain_avg_vec, rainfall_monthly_stds = rain_std_vec)
     
     radiation_mat_lst = driver["radiation_mat_lst"]
     soil_moisture_mat, \
