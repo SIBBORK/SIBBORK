@@ -483,7 +483,7 @@ def return_warming_weather(year):
 #             BEGIN driver dictionary              #
 ####################################################
 
-MAX_TREES_PER_PLOT = 50 #24 #47
+MAX_TREES_PER_PLOT = 24 #47
 driver = {
 # enter some text here that describes any notes about this simulation run; why, where, how, ...
 "run_description":
@@ -494,7 +494,7 @@ This simulation contains all 10 boreal tree species.
 
 "TITLE":"ZELIG-BORK version 4.0 (under testing)",
 "sim_start_year":0,
-"sim_stop_year":20,
+"sim_stop_year":200,
 "LIGHT_MODE":"3D",
 #DEBUG True saves the factors to see where things may have gone wrong
 "DEBUG":True,
@@ -541,6 +541,8 @@ This simulation contains all 10 boreal tree species.
 ##"VR": [0.,   0.,   0.,   0.,    0.,    0.,    0.,    0.,    0.,   0.,   0.,   0., ],
 #"VR": [0.94, 0.81, 1.09, 1.16,  1.57,  2.35,  3.04,  3.14,  2.05, 1.78, 1.41, 1.97],
 
+"return_annual_weather_function":return_historical_weather, #options: return_historical_weather OR return_warming_weather
+
 "AvgRadiation":[16.75, 51.84, 111.74, 179.89, 207.65, 236.91, 224.50, 264.02, 102.64, 47.59, 22.16, 10.00],
 "StdRadiation":[1.49,  4.60,  8.94,  15.3,  19.33,  22.21,  23.34,  21.77,  18.08,  6.40,  2.88,  1.01],
 
@@ -552,7 +554,7 @@ This simulation contains all 10 boreal tree species.
 "Site_index_file_path":"siteindex.txt",
 
 # function gets called once per year: inputs=year, outputs=boolean (True means write this years data to HDF, False no write)
-"log_this_year_function": lambda year: (year % 1) == 0,
+"log_this_year_function": lambda year: (year % 5) == 0,
 
 "SPECIES_doc":"below are silvicultural and tolerance information for each species in sim; set ENABLED=False to eliminate spp from sim",
 "species":{## the format is as follows

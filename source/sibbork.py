@@ -102,7 +102,7 @@ def StartSimulation(driver_filename, output_filename, driver):
         monthly_temp_mat_lst, \
         initial_soil_water_mat, \
         GDD_matrix, drydays_fraction_mat = generate_weather(driver, initial_soil_water_mat, year)
-        if year==10:
+        if year==1:
             print "GDD mat=", GDD_matrix[:,0]
         # kill trees (stressed trees from previous years get to fear for their lives and some may die)
         DBH_matrix, stress_flag_matrix, \
