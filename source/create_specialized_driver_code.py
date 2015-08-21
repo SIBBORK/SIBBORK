@@ -120,27 +120,33 @@ def compute_species_factors_weather(GDD_matrix, drydays_fraction_mat, spp_in_sim
     return GDD_3D_spp_factor_matrix, soil_moist_3D_spp_factor_matrix
 
 @numba.jit()
-def compute_species_factors_soil(relative_soil_fertility_matrix, spp_in_sim):
+def compute_species_factors_soil(relative_soil_fertility_matrix, spp_in_sim, permafrost_matrix):
     '''
 
     Parameters:  relative_soil_fertility_matrix -- a matrix the size of sim grid with values 0 to 1 for each plot in sim 
+                 spp_in_sim -- a scalar of how many species are participation in the simulation
+                 permafrost_matrix -- a matrix the size of sim grid with values of 0 or 1 for where permafrost absent or present, respectively
 
     Returns:    soil_fert_3D_spp_factor_matrix -- the species specific soil fertility factors, size : nx,ny,nspp
+                permafrost_factor_matrix -- the species specific permafrost factor, size: nx, ny, nspp
     '''
     nx,ny = relative_soil_fertility_matrix.shape
     soil_fert_3D_spp_factor_matrix = np.zeros((nx,ny,spp_in_sim))
+    permafrost_factor_matrix = np.zeros((nx,ny,spp_in_sim))
 
     for x in range(nx):
         for y in range(ny):
             for spp in range(spp_in_sim): #address of each cell in 3-D matrix
                 if spp == 0:
                     soil_fert_3D_spp_factor_matrix[x,y,spp] = soil_fertility_factor_numba_species_0(relative_soil_fertility_matrix[x,y])
+                    permafrost_factor_matrix[x,y,spp] = permafrost_factor_numba_species_0(permafrost_matrix[x,y])
 % for spp in range(1, len(make_id_to_name_lut(driver))):
                 elif spp == ${spp}:
                     soil_fert_3D_spp_factor_matrix[x,y,spp] = soil_fertility_factor_numba_species_${spp}(relative_soil_fertility_matrix[x,y])
+                    permafrost_factor_matrix[x,y,spp] = permafrost_factor_numba_species_${spp}(permafrost_matrix[x,y])
 % endfor
 
-    return soil_fert_3D_spp_factor_matrix
+    return soil_fert_3D_spp_factor_matrix, permafrost_factor_matrix
 
 
 def compute_species_factors(GDD_matrix, drydays_fraction_mat, relative_soil_fertility_matrix, spp_in_sim):
@@ -371,6 +377,9 @@ soil_moisture_factor_numba_species_${spp} = numba.jit(nopython=True)(driver['spe
 ##soil_fertility_factor_numba_species_${spp} = driver['species']['${name}']['SOIL_FERTILITY_FACTOR_EQUATION']
 soil_fertility_factor_numba_species_${spp} = numba.jit(nopython=True)(driver['species']['${name}']['SOIL_FERTILITY_FACTOR_EQUATION'])
 
+# species specific permafrost factor equation (see driver)
+permafrost_factor_numba_species_${spp} = numba.jit(nopython=True)(driver['species']['${name}']['PERMAFROST_FACTOR_EQUATION'])
+
 # species specific light factor equation (see driver)
 ##available_light_factor_numba_species_${spp} = driver['species']['${name}']['AVAILABLE_LIGHT_FACTOR_EQUATION']
 available_light_factor_numba_species_${spp} = numba.jit(nopython=True)(driver['species']['${name}']['AVAILABLE_LIGHT_FACTOR_EQUATION'])
@@ -445,7 +454,7 @@ def make_numba_driver_code(driver_file, output_file, use_numba_dummy=False, forc
     # In order to get the best performance from numba, some specialized code has to be written taking inputs
     # from the driver. This specialized file should only be rewritten once whenever the driver changes, and
     # not be written when the driver has not changed (such as replicates running on the cluster).
-    # To detect when the driver has changed, we will compute a CRC of the file contents and compare that
+    # To detect when the driver has changed, this will compute a CRC of the file contents and compare that
     # against a locally stored version of the last used driver CRC value. 
     # You can think of this as sort of like the make tool.
 

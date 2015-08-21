@@ -414,6 +414,24 @@ def bragg_optimal_growth_increment(A, B, C, multiplier):  #factory
     return numba_fix(bragg_optimal_growth_increment_innerfn)
 ########### end optimal increment functions ############
 
+
+############### historical climate function ###############
+def return_historical_weather(year):
+    """
+    Inputs:  year -- current year of sim (integer)
+    Returns:  XT -- vector of 12 average monthly temperatures (deg C) (changed during climate change scenarios)
+              VT -- vector of 12 standard deviations for monthly temperatures (deg C) (not changed)
+              XR -- vector of 12 average monthly precipitation sums (cm) (changed during climate change scenarios)
+              VR -- vector of 12 standard deviations for monthly precipitation sums (cm) (not changed)
+    """
+    XT = np.array([-30.1, -25.6, -12.1, 3.9, 12.15, 18.05, 19.9, 17.5, 10.8, 0.9, -14.8, -26.7])
+    VT = np.array([10.17,   9.08,   7.36, 5.2,  4.97,  4.17,  2.98,  3.36, 3.82,  5.2,    8.6,   10.02])
+    XR = np.array([0.9, 0.4, 0.3, 0.5,  1.4,  4.5,  4.7,  4.4,  2.2, 0.8, 1.0, 1.2])
+    VR = np.array([0.94, 0.81, 1.09, 1.16,  1.57,  2.35,  3.04,  3.14,  2.05, 1.78, 1.41, 1.97])
+    return XT, VT, XR, VR
+############# end historical climate function #############
+
+
 ####################################################
 #             BEGIN driver dictionary              #
 ####################################################
@@ -476,6 +494,8 @@ This simulation contains all 10 boreal tree species.
 "XR": [2.05, 1.49, 1.47, 2.21,  3.86,  4.83,  6.09,  6.20,  4.45, 3.66, 3.49, 2.49],
 #"VR": [0.,   0.,   0.,   0.,    0.,    0.,    0.,    0.,    0.,   0.,   0.,   0., ],
 "VR": [0.94, 0.81, 1.09, 1.16,  1.57,  2.35,  3.04,  3.14,  2.05, 1.78, 1.41, 1.97],
+
+"return_annual_weather_function":return_historical_weather, #options: return_historical_weather OR return_warming_weather
 
 "AvgRadiation":[16.75, 51.84, 111.74, 179.89, 207.65, 236.91, 224.50, 264.02, 102.64, 47.59, 22.16, 10.00],
 "StdRadiation":[1.49,  4.60,  8.94,  15.3,  19.33,  22.21,  23.34,  21.77,  18.08,  6.40,  2.88,  1.01],

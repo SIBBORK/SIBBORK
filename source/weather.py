@@ -171,10 +171,13 @@ def GrowingDegreeDays_calc(ddbase, monthly_temperature_avgs_lst, monthly_tempera
 '''
 #########################################################################################
 
-def one_time_radiation_readin(monthly_radiation_files_path):
+def one_time_radiation_readin(monthly_radiation_files_path,expected_nx,expected_ny):
     """
     Activated in year 1 of sim to read-in the radiation files computed in GIS for the simulated terrain;
     generates a list of matrices to be called during PET and soil moisture and light calculations.
+
+    Parameters: monthly_radiation_files_path -- folder location for the 12 monthly radiation matrices
+                expected_nx, expected_ny -- define the DEM matrix (obtained from DEM.shape)
 
     Returns:  radiation_rasters_lst = a list of 12 matrices containing accumulated radiation for each month on each plot
     """
@@ -182,6 +185,8 @@ def one_time_radiation_readin(monthly_radiation_files_path):
     for i in range(12):
         filename = monthly_radiation_files_path+'/monthlyradiation%d.txt' % (i+1)   #rad1.txt corresponds to january.... rad12.txt corresponds to december's radiation
         months_rad_mat = read_in_ascii(filename)
+        if months_rad_mat.shape != (expected_nx,expected_ny):
+            raise Exception("Monthly radiation file wrong shape: %s" % filename)
         radiation_rasters_lst.append(months_rad_mat)
     return radiation_rasters_lst
 
@@ -216,7 +221,7 @@ def PET(monthly_temp_mat, rad_raster_mat):
     total_energy = rad_raster_mat * 3600
     monthly_temp_mat[monthly_temp_mat<=0] = -3 #this will result in PET=0 for temps <=0C, at which PET should not be occuring
     PET_mat = (0.025 * (monthly_temp_mat + 3.0) * (total_energy))/(2430.0*10000.0)
-    #print "PET mat:", PET_mat[:,0]
+    print "PET mat:", PET_mat[0,0]
     return PET_mat
 
 ##############################################################################
@@ -241,6 +246,7 @@ def rain_sim(rainfall_monthly_avgs, rainfall_monthly_stds):
     # (maybe more for Siberia?) to better represent simulated rain:
     monthly_sim_rain_vec = monthly_sim_rain_vec * 1.1
 
+    print "annual rain: ", np.sum(monthly_sim_rain_vec)
     return monthly_sim_rain_vec
 
 

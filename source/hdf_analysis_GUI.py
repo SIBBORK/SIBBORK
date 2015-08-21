@@ -323,17 +323,17 @@ def make_raster(command, year, raster_filename, **kwargs):
            example: make_raster('spp',year=100,raster_filename='gisspp.txt')
     'lht': Lorey's height on each plot
            example: make_raster('lht',year=100,raster_filename='gislht.txt')
-    'bm': total biomass from each plot
-           example: make_raster('bm',year=100,raster_filename='gisbm.txt')
+    'bv': total biovolume from each plot
+           example: make_raster('bv',year=100,raster_filename='gisbv.txt')
     """
     def launch(command, year, raster_filename, **kwargs):
         if command == 'spp':
             make_spp_raster(year, raster_filename, **kwargs)
         elif command == 'lht':
             make_lht_raster(year, raster_filename, **kwargs)
-#        elif command == 'bm':
-#            make_bm_raster(year, raster_filename, **kwargs)
-    commands = ['spp','lht','bm']
+        elif command == 'bv':
+            make_bv_raster(year, raster_filename, **kwargs)
+    commands = ['spp','lht','bv']
     if command in commands:
         launch(command, year, raster_filename, **kwargs)
         timer.start(200)
@@ -351,7 +351,7 @@ def make_spp_raster(year, raster_filename, **kwargs):
         dbh_matrix = np.array(h5file['DBH'][year_str])
         nx,ny,ntrees = dbh_matrix.shape
         # pull the current year species code matrix from the hdf file
-        species_code_matrix = np.array(h5file['SpeciesCode'][year_str]) #TODO : need to assign -1 when no trees on a plot. currently assigns 0, which is same as ABSI.
+        species_code_matrix = np.array(h5file['SpeciesCode'][year_str]) 
         num_species = len(driver['species_code_to_name'])  
         results_matrix = np.zeros((nx,ny))
 
@@ -359,12 +359,12 @@ def make_spp_raster(year, raster_filename, **kwargs):
             for y in range(ny):
                 biggest_tree = 0
                 biggest_tree_species_code = -1
-                # compute the species specific height values for each species
+                # compute the species specific biovolume values for each species
                 for current_species_code in range(num_species):
-                    # get all of the dbh values for the species code of interest
+                    # get all of the dbh values for the species code of interest (T/F boolean mask)
                     dbh_vec = dbh_matrix[x,y][species_code_matrix[x,y] == current_species_code]
                     if np.any(dbh_vec):
-                        # convert dbh into height
+                        # convert dbh into biovolume
                         species_name = driver['species_code_to_name'][current_species_code]
                         fn = driver['species'][species_name][func_key]
                         results_vec = fn(dbh_vec)
@@ -379,6 +379,7 @@ def make_spp_raster(year, raster_filename, **kwargs):
     #generate the plot-level matrix of spp for largest tree by biovolume on plot
     biovolume_raster_mat = determine_dominance(year,func_key='BIOVOLUME_EQUATION')
     create_gis_raster(biovolume_raster_mat, raster_filename)
+    print "Done. Look for %s" % raster_filename
 
 def create_gis_raster(matrix, raster_filename):
     #Write the plot-level output matrix
@@ -438,16 +439,42 @@ def make_lht_raster(year, raster_filename, **kwargs):
 
             results_matrix[x,y] = loreys_height
     create_gis_raster(results_matrix, raster_filename)
+    print "Done. Look for %s" % raster_filename
 
-def make_bv_raster(year, **kwargs):
+def make_bv_raster(year, raster_filename, **kwargs):
     """
     Compute total biovolume on each plot.
     """
-    pass
+    year_str = '%.4d' % year
+    # pull the current year dbh matrix from the hdf file
+    dbh_matrix = np.array(h5file['DBH'][year_str])
+    nx,ny,ntrees = dbh_matrix.shape
+    # pull the current year species code matrix from the hdf file
+    species_code_matrix = np.array(h5file['SpeciesCode'][year_str]) 
+    num_species = len(driver['species_code_to_name'])  
+    results_matrix = np.zeros((nx,ny))
 
-    #generate the plot-level matrix of spp for largest tree by biovolume on plot
-    biovolume_raster_mat = determine_dominance(year,func_key='BIOVOLUME_EQUATION')
-    create_gis_raster(biovolume_raster_mat, raster_filename)
+    for x in range(nx):
+        for y in range(ny):
+            total_plot_biovolume=0
+            # compute the species specific biovolume values for each species
+            for current_species_code in range(num_species):
+                # get all of the dbh values for the species code of interest (T/F boolean mask)
+                mask = species_code_matrix[x,y] == current_species_code
+                dbh_vec = dbh_matrix[x,y][mask]
+                if np.any(dbh_vec):
+                    # convert dbh into biovolume
+                    species_name = driver['species_code_to_name'][current_species_code]
+                    fn = driver['species'][species_name]['BIOVOLUME_EQUATION']
+                    results_vec = fn(dbh_vec)
+                    all_of_this_species = np.sum(results_vec)
+                    total_plot_biovolume += all_of_this_species
+            results_matrix[x,y] = total_plot_biovolume
+    #print results_matrix.shape
+    #return results_matrix
+    create_gis_raster(results_matrix, raster_filename)
+    print "Done. Look for %s" % raster_filename
+
 
 def display_equation_height():
     display_fns_of_dbh(title="Species Specific Height Equations",
@@ -1124,8 +1151,11 @@ def display_factor_type1(title,
         for current_species_code in range(num_species):
             species_name = driver['species_code_to_name'][current_species_code]
             # get all of the factor values for the species code of interest
-            ##factor_mat = factor_matrix[:,:,current_species_code]
-            factor_mat = factor_matrix[mask][:,current_species_code]
+            if mask is None:
+                factor_mat = factor_matrix[:,:,current_species_code]
+            else:
+                factor_mat = factor_matrix[mask][:,current_species_code]  
+            #factor_mat = factor_matrix  #test
             # compute the average factor for this species on this year
             year_avg = np.mean( factor_mat )
             # store the avg for this species and this year
@@ -1492,7 +1522,7 @@ def main():
     command_info += "  factor('sff' | 'smf' | 'alf' | 'ddf' | 'growth' | 'all', mask)\n"
     command_info += "  spatial('ht' | 'all')\n"
     command_info += "  scatter('sff' | 'smf' | 'alf' | 'ddf' | 'all', mask)\n"
-    command_info += "  make_raster('spp' | 'lht' | 'bm', year, raster_filename)\n"   #spp = species code of the tree with the largest biomass on the plot. Need to specify year.
+    command_info += "  make_raster('spp' | 'lht' | 'bv', year, raster_filename)\n"   #spp = species code of the tree with the largest biomass on the plot. Need to specify year.
 
 ## TODO : 
 #################
@@ -1520,7 +1550,7 @@ def main():
 # small, medium, and large stems/ha by species + total of all species
 # (DONE) spatial average of dry days
 # (DONE) spatial average of growing degree days
-# (DONE) TODO store factors for each tree in the hdf file (maybe debug switch)
+# (DONE) store factors for each tree in the hdf file (maybe debug switch)
 # (DONE) spatial average of species specific degree day factor
 # (DONE) spatial average of species specific soil moisture factor
 # (DONE) spatial average of species specific soil fertility factor

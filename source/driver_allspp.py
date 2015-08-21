@@ -553,6 +553,7 @@ This simulation contains all 10 boreal tree species.
 "Radiation_fraction_file_path":"rad_fraction.txt", 
 "Site_index_file_path":"siteindex.txt",
 
+
 # function gets called once per year: inputs=year, outputs=boolean (True means write this years data to HDF, False no write)
 "log_this_year_function": lambda year: (year % 5) == 0,
 

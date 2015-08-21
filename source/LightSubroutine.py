@@ -108,7 +108,7 @@ def compute_grid_step(azimuth, elevation, xsize, ysize, zsize):
     specified by the input azimuth and elevation angles.
     This routine accounts for non uniform grid scales along each cardinal axes.
 
-    The inputs azmuth & elevation represent a common angular coordinate system used
+    The inputs azimuth & elevation represent a common angular coordinate system used
     for locating positions in the sky.
     See : http://www.esrl.noaa.gov/gmd/grad/solcalc/glossary.html#azimuthelevation
           http://www.esrl.noaa.gov/gmd/grad/solcalc/azelzen.gif
@@ -120,9 +120,9 @@ def compute_grid_step(azimuth, elevation, xsize, ysize, zsize):
                  elevation -- The angle in degrees measured vertically from the azimuth point
                               on the horizon up to the object in the sky. 
                               0 degrees is parallel to the ground and 90 degrees is straight up.
-                 xsize,ysize,zsize -- the length along each edge of a single grid cell
+                 xsize,ysize,zsize -- the length along each edge of a single grid cell in meters
 
-    Returns : grid_step_vec -- a 3 entry vector that defines how many grids to step in the x,y, and z
+    Returns : grid_step_vec -- a 3 entry vector that defines how many grids (plots) to step in the x,y, and z
                                directions in order to move towards the input azimuth and elevation angles
     """
     # get a vector dx,dy,dz which is the the amount we need to travel along each
@@ -130,8 +130,9 @@ def compute_grid_step(azimuth, elevation, xsize, ysize, zsize):
     dir_vec = define_light_direction(azimuth, elevation) 
     # Convert the direction vector (in meters?) to a direction vector in the number of boxes (plots).
     # This conversion is necessary since we will be stepping through integer grid points and the
-    # grid can have a different scale in each direction; i.e. x and y are in 10m steps while z in in 1m steps
+    # grid can have a different scale in each direction; i.e. x and y are in 10m steps while z is in 1m steps
     grid_dir_vec = vec_normalize( dir_vec / np.array([xsize, ysize, zsize]) )
+    divisor = np.min(np.abs(grid_dir_vec[np.abs(grid_dir_vec)>0]))   #want to determine the smallest possible non-zero increment (plot, m) along ray trace
     if abs(grid_dir_vec[0]) > 1e-9:
         # normalize the direction vector such that the step in the x direction is always 1
         dx, dy, dz = grid_dir_vec / abs(grid_dir_vec[0])
@@ -142,7 +143,7 @@ def compute_grid_step(azimuth, elevation, xsize, ysize, zsize):
         # normalize the direction vector such that the step in the z direction is always 1
         dx, dy, dz = grid_dir_vec / abs(grid_dir_vec[2])
 
-    return np.array([dx,dy,dz])
+    return np.array([dx,dy,dz])  #floats returned
 
 def build_arrows_list(xsize, ysize, zsize, PHIB, PHID):
     """
@@ -156,24 +157,29 @@ def build_arrows_list(xsize, ysize, zsize, PHIB, PHID):
 
     Returns: list_of_grid_steps_and_proportion_tuples -- a list of tuples (dx, dy, dz, proportion of total radiation)
     """
-    import itertools
 
-    # define the plot size along the x,y, and z dimentions
-    # 10m by 10m by 1m
-    #xsize, ysize, zsize = 10., 10., 1. 
-
-    #list of tuples (azimuth angle degrees, elevation angle degrees, percent of total direct)
-    list_of_tuples_direct = [(0.  , 0. , 0./100*PHIB),   (45. , 5. , 0.4/100*PHIB),  (90. , 19., 12./100*PHIB), 
-                             (135., 38., 23.4/100*PHIB), (180., 46., 28.4/100*PHIB), (225., 38., 23.4/100*PHIB),
-                             (270., 19., 12./100*PHIB),  (315., 5. , 0.4/100*PHIB)]
-    #list of tuples (azimuth angle degrees, elevation angle degrees, percent of total diffuse)
-    list_of_tuples_diffuse = [(0.  , 45., 11./100*PHID), (90. , 45., 11./100*PHID), (180., 45., 11./100*PHID), 
-                              (270., 45., 11./100*PHID), (0.  , 15., 11./100*PHID), (90. , 15., 11./100*PHID),
-                              (180., 15., 11./100*PHID), (270., 15., 11./100*PHID), (0.  , 90., 11./100*PHID)]
+    #list of tuples (azimuth angle degrees, elevation angle degrees, percent of total direct) for 57N (Usolsky)
+    list_of_tuples_direct = [(0.  , 0. , 0./100.*PHIB),   (45. , 5. , 0.4/100.*PHIB),  (90. , 19., 12./100.*PHIB), 
+                             (135., 38., 23.4/100.*PHIB), (180., 46., 28.4/100.*PHIB), (225., 38., 23.4/100.*PHIB),
+                             (270., 19., 12./100.*PHIB),  (315., 5. , 0.4/100.*PHIB)]
+    #list of tuples (azimuth angle degrees, elevation angle degrees, percent of total diffuse) for any latitude
+    list_of_tuples_diffuse = [(0.  , 45., 11./100.*PHID), (90. , 45., 11./100.*PHID), (180., 45., 11./100.*PHID), 
+                              (270., 45., 11./100.*PHID), (0.  , 15., 11./100.*PHID), (90. , 15., 11./100.*PHID),
+                              (180., 15., 11./100.*PHID), (270., 15., 11./100.*PHID), (0.  , 90., 11./100.*PHID)]
+    """
+    #list of tuples (azimuth angle degrees, elevation angle degrees, NOT YET percent of total direct) for 52N (Streeline)
+    list_of_tuples_direct = [(0.  , 0. , 0./100.*PHIB),   (45. , 5. , 0./100.*PHIB),  (90. , 15., 12./100.*PHIB), 
+                             (135., 39., 23.4/100.*PHIB), (180., 48., 28.4/100.*PHIB), (225., 39., 23.4/100.*PHIB),
+                             (270., 15., 12./100.*PHIB),  (315., 5. , 0./100.*PHIB)]
+    #list of tuples (azimuth angle degrees, elevation angle degrees, NOT YET percent of total direct) for 68N (Ntreeline)
+    list_of_tuples_direct = [(0.  , 0. , 0./100.*PHIB),   (45. , 2.2 , 0.4/100.*PHIB),  (90. , 11.7, 12./100.*PHIB), 
+                             (135., 26.7, 23.4/100.*PHIB), (180., 32.7, 28.4/100.*PHIB), (225., 26.7, 23.4/100.*PHIB),
+                             (270., 11.7, 12./100.*PHIB),  (315., 2.2 , 0.4/100.*PHIB)]
+    """
 
     # build up a list of dx,dy,dz,proportion tuples that will be used to shoot arrows and scale the light value
     list_of_grid_steps_and_proportion_tuples = []
-    for az_angle, el_angle, proportion in itertools.chain(list_of_tuples_direct, list_of_tuples_diffuse):
+    for az_angle, el_angle, proportion in list_of_tuples_direct+list_of_tuples_diffuse:
         if proportion > 0 :
             dx,dy,dz = compute_grid_step(azimuth=az_angle, elevation=el_angle, xsize=xsize, ysize=ysize, zsize=zsize)
             list_of_grid_steps_and_proportion_tuples.append([dx,dy,dz,proportion])
@@ -194,9 +200,7 @@ def build_arrows_list_independent(xsize, ysize, zsize):
     """
     import itertools
 
-    # define the plot size along the x,y, and z dimentions
-    # 10m by 10m by 1m
-    #xsize, ysize, zsize = 10., 10., 1. 
+    #xsize, ysize, zsize = 10., 10., 1. (in meters)
 
     #list of tuples (azimuth angle degrees, elevation angle degrees, percent of total diffuse)
     list_of_tuples_diffuse = [(0.  , 90., 1.)]

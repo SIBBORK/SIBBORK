@@ -25,8 +25,8 @@ import numba
 
 def StartSimulation(driver_filename, output_filename, driver):
     """
-    1) Put drivers (from GIS) into a form python understands
-    2) Iterate over each year
+    1) Puts drivers (from GIS) into a form python understands
+    2) Iterates over each year
 
     Parameters:  driver_filename -- the name and path of the driver file 
                  output_filename -- the name and path of the output hdf file
@@ -45,10 +45,10 @@ def StartSimulation(driver_filename, output_filename, driver):
     DBH_matrix, crown_base_matrix, species_code_matrix, \
                 stress_flag_matrix, seed_bank_matrix, hdf_file = initialization(driver_filename, output_filename, driver)
     # get the dimension of each plot from the driver (this is specified in the DEM file; the path to the DEM file is specified in the driver
-    # the z_size is the resolution with which we track the vertical dimension of the trees (at this point, 1m)
-    x_size = int( driver['EW_plot_length_m'] )
-    y_size = int( driver['NS_plot_length_m'] )
-    z_size = int( driver['vertical_step_m'] )
+    # the z_size_m is the resolution with which we track the vertical dimension of the trees (at this point, 1m)
+    x_size_m = int( driver['EW_plot_length_m'] )  #plot width in meters
+    y_size_m = int( driver['NS_plot_length_m'] )  #plot length in meters
+    z_size_m = int( driver['vertical_step_m'] )   #above ground, through the air
 
     #initialize the groups for HDF file (output)
     DBH_group = hdf_file["DBH"]
@@ -86,7 +86,7 @@ def StartSimulation(driver_filename, output_filename, driver):
     #    Temperature_record_group = hdf_climate_file["Temperature"]
     #    Precipitation_record_group = hdf_climate_file["Precipitation"]
 
-    for year in range(sim_start_year, sim_stop_year+1):
+    for year in range(sim_start_year, sim_stop_year+1):  #+1 b/c python upper bound is not inclusive
         print "Simulation year %s" % year
 
         ## checking to see if need to generate random weather or read it in from a record
@@ -102,8 +102,8 @@ def StartSimulation(driver_filename, output_filename, driver):
         monthly_temp_mat_lst, \
         initial_soil_water_mat, \
         GDD_matrix, drydays_fraction_mat = generate_weather(driver, initial_soil_water_mat, year)
-        if year==1:
-            print "GDD mat=", GDD_matrix[:,0]
+        #if year==2100:  #this and the line below are printouts for testing
+        #    print "GDD mat=", GDD_matrix[:,0]
         # kill trees (stressed trees from previous years get to fear for their lives and some may die)
         DBH_matrix, stress_flag_matrix, \
         species_code_matrix, crown_base_matrix = kill_trees(DBH_matrix, species_code_matrix, stress_flag_matrix, crown_base_matrix, number_of_species)
@@ -119,9 +119,9 @@ def StartSimulation(driver_filename, output_filename, driver):
         optimal_biovolume_matrix, \
         optimal_biovolume_increment_matrix = compute_individual_tree_values(DBH_matrix, species_code_matrix, crown_base_matrix)
 
-        # compute the actual leaf area (TODO: check that this value doesn't get out of control, unrealistic, implement QC)
+        # compute the actual leaf area (TODO: check that this value doesn't get out of control, unrealistic, implement QC, although LAIs in the lower 20s have been reported)
         actual_leaf_area_mat = compute_actual_leaf_area(DBH_matrix, species_code_matrix, crown_base_matrix, 
-                                                        tree_height_matrix, total_leaf_area_matrix, z_size)
+                                                        tree_height_matrix, total_leaf_area_matrix, z_size_m)
 
 
         # compute the weather related factors at the plot level
@@ -132,7 +132,7 @@ def StartSimulation(driver_filename, output_filename, driver):
         # compute 3D light using a more efficient algorithm
         available_light_mat = compute_light(actual_leaf_area_mat, dem_offset_index_mat, 
                                             radiation_fraction_mat, arrows_list, 
-                                            x_size,y_size,z_size)
+                                            x_size_m,y_size_m,z_size_m)
 
         # compute crown base:
         crown_base_matrix = compute_crown_base(DBH_matrix, species_code_matrix, tree_height_matrix,
@@ -155,8 +155,8 @@ def StartSimulation(driver_filename, output_filename, driver):
                                                                                           driver['biovolume_soil_fert_mat'])
 
 
-        # compute the soil/nutrition/site-index factor
-        soil_fert_3D_spp_factor_matrix = compute_species_factors_soil(relative_soil_fertility_matrix, number_of_species)
+        # compute the soil/nutrition/site-index factor and the permafrost factor (size of each matrix: nx,ny,nspp)
+        soil_fert_3D_spp_factor_matrix, permafrost_factor_matrix = compute_species_factors_soil(relative_soil_fertility_matrix, number_of_species, driver['permafrost_mat'])
 
 
         #when run on the local host, this is what gets printed to terminal during model run for each year
@@ -177,8 +177,8 @@ def StartSimulation(driver_filename, output_filename, driver):
 
 
         # computing the regeneration factor for each species on each plot
-        # first, compute min(smf,sff)*gddf   (below ground factors & thermal effects)
-        partial_growth_factor_matrix = np.minimum(soil_moist_3D_spp_factor_matrix, soil_fert_3D_spp_factor_matrix) * GDD_3D_spp_factor_matrix
+        # first, compute min(smf,sff,permafrost)*gddf   (below ground factors & thermal effects)
+        partial_growth_factor_matrix = np.minimum(np.minimum(soil_moist_3D_spp_factor_matrix, soil_fert_3D_spp_factor_matrix), permafrost_factor_matrix) * GDD_3D_spp_factor_matrix
 
         # grow trees
         DBH_matrix, stress_flag_matrix, \
@@ -196,7 +196,7 @@ def StartSimulation(driver_filename, output_filename, driver):
         if driver['ALLOW_REGENERATION']:
             # plant some seedlings (roll the dice, see who gets picked)
             DBH_matrix, crown_base_matrix, seed_bank_matrix, \
-            species_code_matrix, stress_flag_matrix = sprout_saplings_v2_3(DBH_matrix, crown_base_matrix, 
+            species_code_matrix, stress_flag_matrix = sprout_saplings_v2_3(DBH_matrix, crown_base_matrix,   #taken from ZELIG v2.3
                                                                            species_code_matrix, stress_flag_matrix, sprout_factor_matrix,
                                                                            seed_bank_matrix, basal_area_matrix)
             #print "Trees alive after planting  = ", np.sum(DBH_matrix > 0.)
@@ -251,7 +251,7 @@ def StartSimulation(driver_filename, output_filename, driver):
     hdf_file.close()
     for spp in range(number_of_species):
         print spp, species_code_to_name[spp]
-
+    print "Simulation complete. Output file: %s" % (output_filename)
 
 
 
@@ -277,11 +277,12 @@ def initialization(driver_filename, output_filename, driver):
 
     GIS drivers stored in driver file: radiation_mat_lst -- a list of 12 monthly accumulated radiation (WH/m^2) matrices the size of the 
                                                               simulation grid
-                                       elevation_lapse_rate_adjustment_matrix -- 30x30 matrix, provides lapse-rate based adjustment to temperature
+                                       elevation_lapse_rate_adjustment_matrix -- 30x30 matrix, provides lapse-rate based adjustment to temperature          #Note, size same as DEM
                                                                                  from a 180m amls base
                                        site_index_mat - GIS-generated 30x30 matrix with plot-level site index (1-5), which will be converted to soil fert
                                        soil_fert_mat - 30x30 matrix of soil fert in Mg/ha/yr based on site index mat and a conversion table based on 
                                                        forestry yield tables
+                                       permafrost_mat - 30x30 matrix of 0.0 for plots w/o permafrost and 1.0 for plots with permafrost
 
     Returns:    driver -- a driver "dictionary" that contains all of the driver information and values can be called by keys
                 intial_soil_water_mat   --  initialized at field capacity (FC) to start the simulation off with sufficient 
@@ -304,42 +305,50 @@ def initialization(driver_filename, output_filename, driver):
                                        on each plot
     """
     #size of simulation area, the size of each plot, and the North-West corner coordinate
-    driver['DEM_mat'], x_size, y_size, NWx, NWy = read_in_ascii_attributes(driver['DEM_file_path'])
+    driver['DEM_mat'], x_size_m, y_size_m, NWx, NWy = read_in_ascii_attributes(driver['DEM_file_path'])
     # hardcode 1m as the step size in the vertical dimension (may want to change this later to accelerate light computation)
-    z_size = 1
+    z_size_m = 1
     nx,ny = driver['DEM_mat'].shape
     SQ_METERS_IN_HA = 10000.
     # toral area being simulated in hectares
-    driver['sim_area_ha'] = (nx*x_size)*(ny*y_size)/SQ_METERS_IN_HA
+    driver['sim_area_ha'] = (nx*x_size_m)*(ny*y_size_m)/SQ_METERS_IN_HA
     # number of plots in the East-West direction
     driver['EW_number_of_plots'] = nx
     # number of plots in the North-South direction
     driver['NS_number_of_plots'] = ny
     # side length of each plot in the East-West direction
-    driver['EW_plot_length_m'] = x_size
+    driver['EW_plot_length_m'] = x_size_m
     # side length of each plot in the North-South direction
-    driver['NS_plot_length_m'] = y_size
+    driver['NS_plot_length_m'] = y_size_m
     # simulated vertical step size in meters (related to light simulation)
-    driver['vertical_step_m'] = z_size
+    driver['vertical_step_m'] = z_size_m
     # area of each plot in m^2
-    driver['plot_area_m2'] = x_size*y_size
+    driver['plot_area_m2'] = x_size_m*y_size_m
     # maximum number of trees in this simulation
     driver['max_trees_in_simulation'] = nx * ny * driver['MAX_TREES_PER_PLOT']
     # the north-west corner coordinate as a tuple (units = meters, due to UTM projection of DEM)
     driver['north_west_corner_coordinates'] = (NWx, NWy)
 
     # for the growing degree day and soil moisture matrices:
-    driver['elevation_lapse_rate_adjustment_matrix']=read_in_ascii(driver['elevation_lapse_rate_adjustment_matrix_filepath'])
+    driver['elevation_lapse_rate_adjustment_matrix']=read_in_ascii(driver['elevation_lapse_rate_adjustment_matrix_filepath'])  #degrees C
     (plots_x, plots_y) = driver['elevation_lapse_rate_adjustment_matrix'].shape
+    if (plots_x, plots_y) != (nx,ny):
+        raise Exception("Lapse rate adjustment file wrong shape: %s" % driver['elevation_lapse_rate_adjustment_matrix_filepath'])
     initial_soil_water_mat = np.zeros(driver['elevation_lapse_rate_adjustment_matrix'].shape)
-    initial_soil_water_mat = driver['FC'] #start sim with field capacity (FC) as soil water content
+    initial_soil_water_mat = driver['FC'] #start sim with field capacity (FC) as soil water content (cm in the top meter of soil)
     # for PET, which is needed for soil moisture calculation:
-    monthly_radiation_files_path = driver['monthly_radiation_files_path']
-    driver['radiation_mat_lst'] = one_time_radiation_readin(monthly_radiation_files_path)
+    monthly_radiation_files_path = driver['monthly_radiation_files_path']  #WattHours/m2 accumulated for each month
+    driver['radiation_mat_lst'] = one_time_radiation_readin(monthly_radiation_files_path,nx,ny)
     # for the soil fertility matrices:
-    driver['site_index_mat'] = read_in_ascii(driver["Site_index_file_path"])
+    driver['site_index_mat'] = read_in_ascii(driver["Site_index_file_path"])  #values 1-5, 1=fertile soil, 5=poor soil, based on Orlov 1927 classification of soils for Russia
+    if driver['site_index_mat'].shape != (nx,ny):
+        raise Exception("Site index file wrong shape: %s" % driver['Site_index_file_path'])
     # site index to biovolume increment (m^3/plot)/yr
-    driver['biovolume_soil_fert_mat'] = site_index_to_biovolume_convert(driver['site_index_mat'], driver['plot_area_m2'])
+    driver['biovolume_soil_fert_mat'] = site_index_to_biovolume_convert(driver['site_index_mat'], driver['plot_area_m2'])  #Site index converted to a cap on gross primary productivity ((m3/ha)/yr)
+    # for the permafrost matrices:
+    driver['permafrost_mat'] = read_in_ascii(driver["permafrost_file_path"])
+    if driver['permafrost_mat'].shape != (nx,ny):
+        raise Exception("Permafrost file wrong shape: %s" % driver['permafrost_file_path'])
 
     # initialize the simulation matrices
     if driver['LOAD_INTIIAL_CONDITIONS']:
@@ -348,9 +357,10 @@ def initialization(driver_filename, output_filename, driver):
         crown_base_matrix = driver['INITIAL_CONDITIONS']['CrownBase_matrix']
         species_code_matrix = driver['INITIAL_CONDITIONS']['SpeciesCode_matrix']
         # TODO: provide a good error message that the matrices in the driver are the wrong size
-        assert DBH_matrix.shape == (plots_x, plots_y, driver['MAX_TREES_PER_PLOT'])
-        assert crown_base_matrix.shape == (plots_x, plots_y, driver['MAX_TREES_PER_PLOT'])
-        assert species_code_matrix.shape == (plots_x, plots_y, driver['MAX_TREES_PER_PLOT'])
+        if DBH_matrix.shape != (plots_x, plots_y, driver['MAX_TREES_PER_PLOT']) or \
+           crown_base_matrix.shape != (plots_x, plots_y, driver['MAX_TREES_PER_PLOT']) or \
+           species_code_matrix.shape != (plots_x, plots_y, driver['MAX_TREES_PER_PLOT']):
+            raise Exception("Initial conditions incorrect in driver - matrices wrong shape")
     else:
         # initialize from bare ground (no trees)
         # initializing the 3-D arrays for storing DBH, crown base, species code, and stress flags for each tree on each plot
@@ -375,20 +385,22 @@ def initialization(driver_filename, output_filename, driver):
         # for the 3D light subroutine:
         # define the plot size along the x,y, and z dimentions: taken from the DEM, and 1-m vertical step is assumed (hardcoded)
         # pre-compute the "arrows" that will be used to compute the light at every position in the actual leaf area matrix
-        arrows_list = build_arrows_list(xsize=x_size, ysize=y_size, zsize=z_size, PHIB=driver['PHIB'], PHID=driver['PHID'])
+        arrows_list = build_arrows_list(xsize=x_size_m, ysize=y_size_m, zsize=z_size_m, PHIB=driver['PHIB'], PHID=driver['PHID'])
     elif driver['LIGHT_MODE']=='1D':
-        arrows_list = build_arrows_list_independent(xsize=x_size, ysize=y_size, zsize=z_size)
+        arrows_list = build_arrows_list_independent(xsize=x_size_m, ysize=y_size_m, zsize=z_size_m)
     else:
         raise Exception("Can't grow trees in hyperbolic space! Select a proper LIGHT_MODE in driver (1D or 3D)!")
     # set up an empty actual leaf area matrix that has been adjusted for elevation in the DEM = these are the initial conditions w/o tree but w/terrain
     actual_leaf_area_mat, dem_offset_index_mat = prepare_actual_leaf_area_mat_from_dem(dem_ascii_filename=driver['DEM_file_path'], 
-                                                             xsize=x_size,ysize=y_size,zsize=z_size, 
+                                                             xsize=x_size_m,ysize=y_size_m,zsize=z_size_m, 
                                                              max_tree_ht=driver['MAX_TREE_HEIGHT'])  # the maximum height a tree can reach in m
     # Read in the radiation fraction matrix that is used to scale the proportion of radiation
     # that is available to every location on the DEM at ground-level. This will be used to account for terrain shading.
     # Ground-level light, post accounting for shading by terrain, is pretty much the same as the
     # fraction used for top-of-canopy, since found no significant difference b/w the two.
     radiation_fraction_mat = np.array(read_in_ascii(filename=driver["Radiation_fraction_file_path"]), dtype=np.float)
+    if radiation_fraction_mat.shape != (nx,ny):
+        raise Exception("Rad fraction file wrong shape: %s" % driver['Radiation_fraction_file_path'])
     # set the plot size
     plot_area=driver['plot_area_m2']
 
@@ -485,7 +497,7 @@ def site_index_to_biovolume_convert(site_index_mat, plot_area):
     #site_index_look_up_table = {1:13.78, 2:10.18, 3:8.45, 4:6.7, 5:4.96}  # original in (m^3/ha)/yr; this is based on yield table production
     #site_index_look_up_table = {1:9.07, 2:3.96, 3:2.92, 4:1.99, 5:1.27}  # original in (m^3/ha)/yr; this is based on yield table production LASI p.231
     #site_index_look_up_table = {1:8.0, 2:6.35, 3:2.5, 4:1.99, 5:1.3}  # PISY p.136-137 for SI 3:1.3 as on p.728
-    site_index_look_up_table = {1:8.0, 2:6.0, 3:5.0, 4:2.0, 5:1.3}  #for treeline sim **change SI 3 back to 7.0 for ABSI/BEPE
+    site_index_look_up_table = {1:8.0, 2:6.0, 3:4.0, 4:2.0, 5:1.3}  #for treeline sim = 5.0 **change SI 3 back to 7.0 for ABSI/BEPE
     soil_fert_mat = np.zeros(site_index_mat.shape)
     nx,ny = soil_fert_mat.shape
     for x in range(nx):
