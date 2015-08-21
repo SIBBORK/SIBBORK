@@ -130,20 +130,14 @@ def compute_grid_step(azimuth, elevation, xsize, ysize, zsize):
     dir_vec = define_light_direction(azimuth, elevation) 
     # Convert the direction vector (in meters?) to a direction vector in the number of boxes (plots).
     # This conversion is necessary since we will be stepping through integer grid points and the
-    # grid can have a different scale in each direction; i.e. x and y are in 10m steps while z is in 1m steps
-    grid_dir_vec = vec_normalize( dir_vec / np.array([xsize, ysize, zsize]) )
+    # grid can have a different scale in each direction; i.e. x and y are in 10m (or 20m, or 30m, whatever the plot width & length are) steps while z is in 1m steps
+    grid_dir_vec = dir_vec / np.array([xsize, ysize, zsize])
     divisor = np.min(np.abs(grid_dir_vec[np.abs(grid_dir_vec)>0]))   #want to determine the smallest possible non-zero increment (plot, m) along ray trace
-    if abs(grid_dir_vec[0]) > 1e-9:
-        # normalize the direction vector such that the step in the x direction is always 1
-        dx, dy, dz = grid_dir_vec / abs(grid_dir_vec[0])
-    elif abs(dir_vec[1]) > 1e-9:
-        # normalize the direction vector such that the step in the y direction is always 1
-        dx, dy, dz = grid_dir_vec / abs(grid_dir_vec[1])
-    else:
-        # normalize the direction vector such that the step in the z direction is always 1
-        dx, dy, dz = grid_dir_vec / abs(grid_dir_vec[2])
-
+    # normalize the direction vector such that the step increment in the smallest non-zero direction is 1
+    dx, dy, dz = grid_dir_vec / divisor
+    
     return np.array([dx,dy,dz])  #floats returned
+
 
 def build_arrows_list(xsize, ysize, zsize, PHIB, PHID):
     """
@@ -198,9 +192,6 @@ def build_arrows_list_independent(xsize, ysize, zsize):
 
     Returns: list_of_grid_steps_and_proportion_tuples -- a list of tuples (dx, dy, dz, proportion of total radiation)
     """
-    import itertools
-
-    #xsize, ysize, zsize = 10., 10., 1. (in meters)
 
     #list of tuples (azimuth angle degrees, elevation angle degrees, percent of total diffuse)
     list_of_tuples_diffuse = [(0.  , 90., 1.)]
@@ -214,17 +205,18 @@ def build_arrows_list_independent(xsize, ysize, zsize):
     #print list_of_grid_steps_and_proportion_tuples
     return list_of_grid_steps_and_proportion_tuples
 
-def prepare_actual_leaf_area_mat_from_dem(dem_ascii_filename, xsize,ysize,zsize, max_tree_ht=50):
+
+def prepare_actual_leaf_area_mat_from_dem(dem_mat, zsize, max_tree_ht):
     """
+    TODO: get rid of this/comment it out, b/c no need to use this anymore, since actual_leaf_area_mat is set to zeroes anyway, so removes any -1 from below ground.
     Takes the DEM text file, gets the number of grids in sim from the DEM, then pushes the actual leaf area values up 
     (ground under the trees), so calculate how many cells we need to push the actual leaf area matrix up (each x,y 
     position will be pushed up a different value, which corresponds to the elevation of terrain below this plot
     relative to the minimum elevation on the simulated grid, NOT relative to sea level).
 
-    Parameters:  dem_ascii_filename -- file name of the Digital Elevation Model to use (.txt)
-                 xsize,ysize,zsize  -- the x width (E<-->W) of a plot, y length (N<-->S) of a plot, 
-                                       and z (vertical step size along tree for light computation, 1m) 
-                 max_tree_ht=50     -- max height of tree permitted (light subroutine doesn't check above this)
+    Parameters:  dem_mat -- matrix made from Digital Elevation Model stored in driver
+                 zsize  --  z (vertical step size along tree for light computation, 1m) 
+                 max_tree_ht        -- max height of tree permitted, set in driver (light subroutine doesn't check above this)
 
     Returns:     actual_leaf_area_mat   --  contains -1 below ground and 0 above ground for each plot and air space above plot
                                             size: nx, ny, vertical space = (max_tree_ht+(max elevation in sim - min elevation in sim))
@@ -235,9 +227,6 @@ def prepare_actual_leaf_area_mat_from_dem(dem_ascii_filename, xsize,ysize,zsize,
     # get the number of cells in the z direction that will hold the plot actual leaf area data (w/o DEM adjustment)
     zcells = math.ceil(max_tree_ht / zsize)
 
-    # read in the DEM which we will eventually place under the actual leaf area grid
-    dem_mat = read_in_ascii(filename=dem_ascii_filename)
-    #print 'dem value at x=1, y=3 is %s' %(dem_mat[1,3])
     # get the number of grid points from the dem; the actual leaf area grid x,y dimension will be the same size
     nx, ny = dem_mat.shape
     # what is the minimum height of the dem terrain within simulated grid of plots
@@ -247,21 +236,21 @@ def prepare_actual_leaf_area_mat_from_dem(dem_ascii_filename, xsize,ysize,zsize,
     # a different value, which corresponds to the elevation of terrain below this plot
     # relative to the minimum elevation on the simulated grid, NOT relative to sea level).
     # dtype stored as integer, so as to use these values as indices later on.
-    dem_offset_index_mat = np.array( np.round((dem_mat - dem_min) / zsize), dtype=np.int)
+    dem_offset_index_mat = np.array( np.round((dem_mat - dem_min) / zsize), dtype=np.int) #meters to box step conversion
     additional_zcells = np.max(dem_offset_index_mat) #highest elevation on grid
     #print 'additonal z offset due to DEM is %s cells' %(additional_zcells)
     # calculate the total number of cells we need to hold the relativized DEM elevation
     # and trees that can reach up to the max_tree_ht
     total_zcells = zcells + additional_zcells
     # inititally the actual leaf area matrix is all zeros (no trees and no ground)
-    actual_leaf_area_mat = np.zeros( (nx, ny, total_zcells) )
+    actual_leaf_area_mat = np.zeros( (nx, ny, total_zcells) )  #size: nx, ny, max_tree_ht+rangeOfDEMelevs
     #print 'actual leaf area matrix shape is :' ,actual_leaf_area_mat.shape
     # fill in the below ground levels with the special flag (-1)
     GROUND_FLAG = -1
     for x in xrange(nx):
         for y in xrange(ny):
             gnd_level = dem_offset_index_mat[x,y]
-            actual_leaf_area_mat[x,y,:gnd_level] = GROUND_FLAG
+            actual_leaf_area_mat[x,y,:gnd_level] = GROUND_FLAG  #everything below ground =-1
     # We should now have an actual leaf area matrix with below ground levels flagged,
     # and above ground values empty and ready to be filled. To use this,
     # we need the light routine to be aware of the ground flag, as well
@@ -295,7 +284,7 @@ if __name__ == '__main__':  #need this to run from commandline
     ## TEST
     # put in a tree popsicle; to remove tree comment out the two lines below
     px, py = 10, 10
-    actual_leaf_area_mat[px,py, dem_offset_index_mat[px,py]+30:-10] = 1e20
+    actual_leaf_area_mat[px,py, dem_offset_index_mat[px,py]+30:-10] = 1e20  #that's one dense tree!
     #px, py = 10, 11
     #actual_leaf_area_mat[px,py, dem_offset_index_mat[px,py]+30:-10] = 100000.0
     #px, py = 11, 10
@@ -317,7 +306,7 @@ if __name__ == '__main__':  #need this to run from commandline
     print actual_leaf_area_mat[0,0,:]
     print al_mat[0,0,:]
 
-    m = VolumeSlicer(data=al_mat) #doesn't work in Windows OS
+    m = VolumeSlicer(data=al_mat) #doesn't work in Windows OS; shadow to the south due to diffuse light component
     m.configure_traits()
 
     #example()

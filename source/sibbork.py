@@ -151,8 +151,8 @@ def StartSimulation(driver_filename, output_filename, driver):
                                                                                     available_light_spp_factor_matrix, 
                                                                                     optimal_biovolume_increment_matrix)
         # compute the relative soil fertility (based on ratio of what the plot can support to likely biovolume increment)
-        relative_soil_fertility_matrix = biovolume_compute_relative_soil_fertility_matrix(likely_biovolume_increment_matrix, 
-                                                                                          driver['biovolume_soil_fert_mat'])
+        relative_soil_fertility_matrix = biovolume_compute_relative_soil_fertility_matrix(likely_biovolume_increment_matrix, #units: m3/tree
+                                                                                          driver['biovolume_soil_fert_mat'])  #units: m3/plot
 
 
         # compute the soil/nutrition/site-index factor and the permafrost factor (size of each matrix: nx,ny,nspp)
@@ -183,7 +183,7 @@ def StartSimulation(driver_filename, output_filename, driver):
         # grow trees
         DBH_matrix, stress_flag_matrix, \
         growth_factor_matrix = grow_trees(DBH_matrix, species_code_matrix, available_light_spp_factor_matrix, 
-                                          partial_growth_factor_matrix, stress_flag_matrix, optimal_growth_increment_matrix)
+                                          partial_growth_factor_matrix, stress_flag_matrix, optimal_growth_increment_matrix,species_code_to_stress_threshold)
 
         # sizes of matrices: inputs: (nx,ny,spp_in_sim) * min((nx,ny,spp_in_sim),(nx,ny,spp_in_sim)) * (nx,ny,spp_in_sim)
         # sprout_factor_matrix = ground_light_3D_spp_factor_matrix * np.minimum(soil_moist_3D_spp_factor_matrix, soil_fert_3D_spp_factor_matrix) * GDD_3D_spp_factor_matrix
@@ -340,23 +340,23 @@ def initialization(driver_filename, output_filename, driver):
     monthly_radiation_files_path = driver['monthly_radiation_files_path']  #WattHours/m2 accumulated for each month
     driver['radiation_mat_lst'] = one_time_radiation_readin(monthly_radiation_files_path,nx,ny)
     # for the soil fertility matrices:
-    driver['site_index_mat'] = read_in_ascii(driver["Site_index_file_path"])  #values 1-5, 1=fertile soil, 5=poor soil, based on Orlov 1927 classification of soils for Russia
+    driver['site_index_mat'] = read_in_ascii(driver["Site_index_file_path"])  #values 1-5, 1=fertile soil, 5=poor soil, based on Orlov??? 1927 classification of soils for Russia
     if driver['site_index_mat'].shape != (nx,ny):
         raise Exception("Site index file wrong shape: %s" % driver['Site_index_file_path'])
     # site index to biovolume increment (m^3/plot)/yr
     driver['biovolume_soil_fert_mat'] = site_index_to_biovolume_convert(driver['site_index_mat'], driver['plot_area_m2'])  #Site index converted to a cap on gross primary productivity ((m3/ha)/yr)
     # for the permafrost matrices:
-    driver['permafrost_mat'] = read_in_ascii(driver["permafrost_file_path"])
+    driver['permafrost_mat'] = read_in_ascii(driver["permafrost_file_path"]) #Boolean 0 or 1 for presence of permafrost
     if driver['permafrost_mat'].shape != (nx,ny):
         raise Exception("Permafrost file wrong shape: %s" % driver['permafrost_file_path'])
 
     # initialize the simulation matrices
     if driver['LOAD_INTIIAL_CONDITIONS']:
         # load the simulation "state" from values in the driver to initialize model run from a known state with trees
-        DBH_matrix = driver['INITIAL_CONDITIONS']['DEM_matrix']
-        crown_base_matrix = driver['INITIAL_CONDITIONS']['CrownBase_matrix']
+        DBH_matrix = driver['INITIAL_CONDITIONS']['DEM_matrix'] #DBH in cm
+        crown_base_matrix = driver['INITIAL_CONDITIONS']['CrownBase_matrix'] #height above ground in meters
         species_code_matrix = driver['INITIAL_CONDITIONS']['SpeciesCode_matrix']
-        # TODO: provide a good error message that the matrices in the driver are the wrong size
+        # Provide a good error message that the matrices in the driver are the wrong size
         if DBH_matrix.shape != (plots_x, plots_y, driver['MAX_TREES_PER_PLOT']) or \
            crown_base_matrix.shape != (plots_x, plots_y, driver['MAX_TREES_PER_PLOT']) or \
            species_code_matrix.shape != (plots_x, plots_y, driver['MAX_TREES_PER_PLOT']):
@@ -364,12 +364,12 @@ def initialization(driver_filename, output_filename, driver):
     else:
         # initialize from bare ground (no trees)
         # initializing the 3-D arrays for storing DBH, crown base, species code, and stress flags for each tree on each plot
-        DBH_matrix = np.zeros((plots_x,plots_y,driver["MAX_TREES_PER_PLOT"])) #(x,y,z) passed in as a tuple
-        crown_base_matrix = np.zeros((plots_x,plots_y,driver["MAX_TREES_PER_PLOT"]), dtype=np.int) 
+        DBH_matrix = np.zeros((plots_x,plots_y,driver["MAX_TREES_PER_PLOT"])) #(x,y,z) passed in as a tuple, DBH in cm
+        crown_base_matrix = np.zeros((plots_x,plots_y,driver["MAX_TREES_PER_PLOT"]), dtype=np.int)  #height above ground in meters
         species_code_matrix = np.zeros((plots_x,plots_y,driver["MAX_TREES_PER_PLOT"]), dtype=np.int) #use a number to denote species code (1=BEPE, etc)
         species_code_matrix[:] = -1 #initialize empty as -1 so as not to confuse with 0 which corresponds to an actual species code in the simulation
     # stress flags always start at zero
-    stress_flag_matrix = np.zeros((plots_x,plots_y,driver["MAX_TREES_PER_PLOT"]), dtype=np.int)
+    stress_flag_matrix = np.zeros((plots_x,plots_y,driver["MAX_TREES_PER_PLOT"]), dtype=np.int) #0=not stressed, >0 value corresponds to # of stress flags accrued
     
 
     #implement the inseeding lag for shade-tolerant species as in ZELIG v2.3
@@ -387,18 +387,18 @@ def initialization(driver_filename, output_filename, driver):
         # pre-compute the "arrows" that will be used to compute the light at every position in the actual leaf area matrix
         arrows_list = build_arrows_list(xsize=x_size_m, ysize=y_size_m, zsize=z_size_m, PHIB=driver['PHIB'], PHID=driver['PHID'])
     elif driver['LIGHT_MODE']=='1D':
-        arrows_list = build_arrows_list_independent(xsize=x_size_m, ysize=y_size_m, zsize=z_size_m)
+        arrows_list = build_arrows_list_independent(xsize=x_size_m, ysize=y_size_m, zsize=z_size_m)  #no need for PHIB or PHID b/c from overhead all light is diffuse
     else:
         raise Exception("Can't grow trees in hyperbolic space! Select a proper LIGHT_MODE in driver (1D or 3D)!")
     # set up an empty actual leaf area matrix that has been adjusted for elevation in the DEM = these are the initial conditions w/o tree but w/terrain
-    actual_leaf_area_mat, dem_offset_index_mat = prepare_actual_leaf_area_mat_from_dem(dem_ascii_filename=driver['DEM_file_path'], 
-                                                             xsize=x_size_m,ysize=y_size_m,zsize=z_size_m, 
+    actual_leaf_area_mat, dem_offset_index_mat = prepare_actual_leaf_area_mat_from_dem(dem_mat=driver['DEM_mat'], 
+                                                             zsize=z_size_m, 
                                                              max_tree_ht=driver['MAX_TREE_HEIGHT'])  # the maximum height a tree can reach in m
-    # Read in the radiation fraction matrix that is used to scale the proportion of radiation
+    # Read in the radiation fraction matrix that is used to scale the proportion of radiation (unitless ratio)
     # that is available to every location on the DEM at ground-level. This will be used to account for terrain shading.
     # Ground-level light, post accounting for shading by terrain, is pretty much the same as the
     # fraction used for top-of-canopy, since found no significant difference b/w the two.
-    radiation_fraction_mat = np.array(read_in_ascii(filename=driver["Radiation_fraction_file_path"]), dtype=np.float)
+    radiation_fraction_mat = np.array(read_in_ascii(filename=driver["Radiation_fraction_file_path"]), dtype=np.float) #unitless
     if radiation_fraction_mat.shape != (nx,ny):
         raise Exception("Rad fraction file wrong shape: %s" % driver['Radiation_fraction_file_path'])
     # set the plot size
@@ -446,7 +446,7 @@ def generate_weather(driver, initial_soil_water_mat, year):
 
     Parameters: driver -- a driver "dictionary" that contains all of the driver information and values can be called by keys
                 intial_soil_water_mat -- initialized at field capacity (FC) to start the simulation off with sufficient
-                                         soil moisture
+                                         soil moisture (cm in top 1m of soil)
                 year -- current simulation year (integer)
 
     Returns:    soil_moisture_mat --     a fraction 0 to 1 of soil moisture on each plot based on precip sim and PET calc;
@@ -454,9 +454,9 @@ def generate_weather(driver, initial_soil_water_mat, year):
                 GDD_matrix --            a matrix the size of the sim grid of accumulated growing degrees over this year in sim
                 drydays_fraction_mat -- the fraction 0 to 1 of the growing season in drought
     """
-    temperature_avg_vec, temperature_std_vec, rain_avg_vec, rain_std_vec = driver['return_annual_weather_function'](year)
+    temperature_avg_vec, temperature_std_vec, rain_avg_vec, rain_std_vec = driver['return_annual_weather_function'](year)  #units: deg C, deg C, cm, cm
 
-    GDD_matrix, \
+    GDD_matrix, \   #deg C
     monthly_temp_mat_lst, \
     total_growing_season_mat = GrowingDegreeDays_calc(ddbase = driver["DDBASE"], monthly_temperature_avgs_lst = temperature_avg_vec, 
                                                       monthly_temperature_stds_lst = temperature_std_vec, 
@@ -466,7 +466,7 @@ def generate_weather(driver, initial_soil_water_mat, year):
     # simulate random precipitation
     monthly_sim_rain_vec = rain_sim(rainfall_monthly_avgs = rain_avg_vec, rainfall_monthly_stds = rain_std_vec)
     
-    radiation_mat_lst = driver["radiation_mat_lst"]
+    radiation_mat_lst = driver["radiation_mat_lst"]  #Watt-Hours/m2, a matrix for each month contains a montly value for each plot
     soil_moisture_mat, \
     drydays_fraction_mat = drydays(total_growing_season_mat = total_growing_season_mat, soil_moisture_mat = initial_soil_water_mat, 
                                    wilting_point = driver['WP'], monthly_temp_mat_lst = monthly_temp_mat_lst, 
@@ -479,12 +479,12 @@ def generate_weather(driver, initial_soil_water_mat, year):
 def site_index_to_biovolume_convert(site_index_mat, plot_area):
     """
     Convert site index to soil fertility in (m^3/ha)/yr. In actuality, there is not a known clear relationship
-    between site index and quantitative amounts of "nutrition" (i.e. nitrogen) in the soil. Site index is a species-
+    between site index and quantitative amounts of "nutrition" (i.e. nitrogen) in the soil. Site index (value 1-5) is a species-
     specific value assigned to a parcel of land based on how fast trees of a given species grow on it. The way soil 
     foresters do this is a bit of "black magic", as Hank calls it. Possibly due to scale incompatibilities, there is no
     clear deliniation or overlap of {soil types and nitrogen content} with site indices in the Usolsky forest inventory.
-    Here, the conversion is derived from yield tables and is species-specific, however, most of the 10 test species agree
-    on ~4m3/ha as the max annual biovolume increment for site index (SI) 1, and other SIs are similar. Adjust the conversion
+    Here, the conversion is derived from yield tables and is species-specific, however, most of the 7 test species agree
+    on ~4m3/ha as the max annual biovolume increment for site index (SI) 3, and other SIs are similar. Adjust the conversion
     dictionary based on monospecies/mixed forest simulation, stocking density, etc. Useful tables for stocking density
     adjustments in back of yield table book p.726 onward.
 
@@ -502,16 +502,17 @@ def site_index_to_biovolume_convert(site_index_mat, plot_area):
     nx,ny = soil_fert_mat.shape
     for x in range(nx):
         for y in range(ny):
-            soil_fert_mat[x,y] = site_index_look_up_table[site_index_mat[x,y]]
+            soil_fert_mat[x,y] = site_index_look_up_table[site_index_mat[x,y]]   #(m3/ha)/yr
     # to convert from m^3/ha to m^3/plot:  1ha/10000m2 * X m2/plot
-    Mg_ha_to_kg_plot_conversion_factor = 1./10000. * plot_area
-    soil_fert_mat = soil_fert_mat * Mg_ha_to_kg_plot_conversion_factor  #10 kg/plot
+    m3_ha_to_m3_plot_conversion_factor = 1./10000. * plot_area  #no magic numbers
+    soil_fert_mat = soil_fert_mat * m3_ha_to_m3_plot_conversion_factor  
     return soil_fert_mat
 
-
+'''
 ##### soil fertility computed from biomass #####
 def biomass_compute_relative_soil_fertility_matrix(DBH_matrix, biomass_matrix, optimal_growth_increment_matrix, optimal_biomass_matrix, soil_fert_mat):
     """
+    don't actually use this one, b/c it's more error-prone than site-index-to-biovolume convert
     """
     nx,ny = soil_fert_mat.shape
     relative_soil_fertility_matrix = np.zeros((nx,ny))
@@ -576,7 +577,7 @@ def biomass_plot_wide_relative_soil_fertility(DBH_vec, biomass_vec, opt_inc_vec,
     return rel_fertility
 
 ##### end soil fertility computed from biomass #####
-
+'''
 
 ############ biovolume increment using only above ground factors ################
 @numba.jit()
@@ -614,20 +615,20 @@ def compute_plot_likely_biovolume_increment(species_code_matrix, GDD_3D_spp_fact
                 optimal_biovolume_increment = optimal_biovolume_increment_matrix[x,y,tree]
                 likely_biovolume_increment_matrix[x,y,tree] = optimal_biovolume_increment * (degree_day_factor * light_factor)
 
-    return likely_biovolume_increment_matrix
+    return likely_biovolume_increment_matrix   #units: m3 (by individual tree)
 ############ end biovolume increment using only above ground factors ############
 
 
 ##### soil fertility computed from biovolume #####
 @numba.jit()
 def biovolume_compute_relative_soil_fertility_matrix(likely_biovolume_increment_matrix,
-                                                     plot_max_biovolume_increment_matrix):
+                                                     plot_max_biovolume_increment_matrix): #comes from site index to biovolume convert
     """
     Compute the ratio of likely biovolume increment to what the plot can support.
 
     Parameters : likely_biovolume_increment_matrix -- the likely biovolume increment for each tree in the simulation
                                                       size : nx,ny,ntrees
-                 plot_max_biovolume_increment_matrix -- the maximum biovolume increment that each plot can support
+                 plot_max_biovolume_increment_matrix -- the maximum biovolume increment that each plot can support (Gross Primary Productivity cap based on site index)
                                                       size : nx,ny
 
     Returns : relative_soil_fertility_matrix -- the ratio of what the plot can support to the possible biovolume increment
@@ -635,7 +636,7 @@ def biovolume_compute_relative_soil_fertility_matrix(likely_biovolume_increment_
     """
     nx,ny,ntrees = likely_biovolume_increment_matrix.shape
     relative_soil_fertility_matrix = np.zeros((nx,ny))
-    # sum the biovolume increment for each plot
+    # sum the biovolume increment for all trees on each plot, size:nx,ny
     plot_likely_biovolume_increment_mat = np.sum(likely_biovolume_increment_matrix, axis=2)
 
     for x in range(nx):
@@ -645,7 +646,7 @@ def biovolume_compute_relative_soil_fertility_matrix(likely_biovolume_increment_
             if plot_likely_biovolume_increment <= plot_max_biovolume_increment:
                 relative_soil_fertility_matrix[x,y] = 1.0
             else:
-                relative_soil_fertility_matrix[x,y] = plot_max_biovolume_increment / plot_likely_biovolume_increment
+                relative_soil_fertility_matrix[x,y] = plot_max_biovolume_increment / plot_likely_biovolume_increment  #this ratio is <1
 
     return relative_soil_fertility_matrix
 
@@ -677,7 +678,7 @@ def light_factor_compute(available_light_mat, tree_height_matrix, crown_base_mat
     # compute a 4D matrix (nx,ny,nz,spp) containing the light factors by height and by species
     light_factor_by_species_matrix = compute_available_light_factors_by_species(available_light_mat, number_of_species)
 
-    # for every tree average the light factor over the length of the tree (crown base to height)
+    # for each individual tree the light factor is averaged over the length of the tree crown (crown base to height)
     for x in range(nx):
         for y in range(ny):
             for ind in range(ntrees):
@@ -687,7 +688,7 @@ def light_factor_compute(available_light_mat, tree_height_matrix, crown_base_mat
                 crown_length = numba.int_(height) - crown_base
                 if spp >= 0 and crown_length > 0:
                     assert (numba.int_(height) > crown_base)
-                    # average over the length of the tree
+                    # average over the length of the tree crown
                     tree_light_factor = 0.
                     for z in range(crown_base, int(height)):
                         tree_light_factor += light_factor_by_species_matrix[x,y,z,spp]
@@ -695,7 +696,7 @@ def light_factor_compute(available_light_mat, tree_height_matrix, crown_base_mat
                     tree_light_factor /= float(crown_length)
                     available_light_spp_factor_matrix[x,y,ind] = tree_light_factor
 
-            # build the nx,ny,nspp ground_light_matrix 
+            # build the nx,ny,nspp ground_light_matrix used for sprouting
             for spp in range(number_of_species):
                 ground_light_spp_factor_matrix[x,y,spp] = light_factor_by_species_matrix[x,y,0,spp]
 
@@ -706,6 +707,8 @@ def sprout_saplings_v2_3(DBH_matrix, crown_base_matrix, species_code_matrix, str
                          sprout_factor_matrix, seed_bank_matrix, basal_area_matrix):
     """
     This function somewhat resembles ZELIG v2.3 REGEN subroutine, which includes stump sprouting and seedling sprouts.
+    SIBBORK doesn't currently have stump sprouting, but additing this would increase the contribution from aspen, birch and spruce,
+    especially post fire.
 
     Parameters:  DBH_matrix -- records DBH for every tree in sim, size: sim grid (x,y) by number of trees on each plot
                  crown_base_matrix -- records the crown base for each tree in sim, size: sim grid by number of trees 
@@ -733,7 +736,7 @@ def sprout_saplings_v2_3(DBH_matrix, crown_base_matrix, species_code_matrix, str
     for x in range(nx):  #for each row
         for y in range(ny):  #for each column
             #total_transplants = 0   #this year's seed-bank-to-saplings migrants for all species on this plot
-            transplants_by_species = []  #in preparation for the seed dart board; seed value for each specie that will be planted this year
+            transplants_by_species = []  #in preparation for the seed dart board; seed value for each species that will be planted this year
             for species_code in range(number_of_species):
                 if sprout_factor_matrix[x,y,species_code] == 0.:  #if cannot regenerate because regen factor is 0,
                     seed_bank_matrix[:,species_code,x,y] = 0   #erase seeds of this species from seed bank
@@ -753,8 +756,8 @@ def sprout_saplings_v2_3(DBH_matrix, crown_base_matrix, species_code_matrix, str
                 total_basal_area_on_plot = np.sum(basal_area_matrix[x,y]) #sum the basal area on this plot
                 #Compute number of available spaces for new seedlings or stump sprouts on this plot based on number of
                 #trees on plot and the total basal area they occupy (on this plot).
-                #Not sure how subtracting individuals and area from individuals makes sense: subtracting apples from lobsters?
-                possible_spaces = int(ntrees - trees_on_plot - total_basal_area_on_plot)
+                #Not sure how subtracting individuals and area from individuals makes sense: subtracting apples from lobsters? retained from ZELIG. never fill plot to max # trees.
+                possible_spaces = int(ntrees - trees_on_plot - total_basal_area_on_plot) #scales appropriately with plot size
                 normalized_transplant_vec = np.array(transplants_by_species)/(sum(transplants_by_species)) #normalizing seeds as in v2.3
                 cumsum_transplant_vec = np.cumsum(normalized_transplant_vec) #prepare the dartboard
                 saplings_to_plant_by_species = np.zeros(species_in_sim, dtype=np.int)  #create bins for each species to count number of seeds in each
@@ -772,13 +775,13 @@ def sprout_saplings_v2_3(DBH_matrix, crown_base_matrix, species_code_matrix, str
                     ntransplants = saplings_to_plant_by_species[species_code]  # number of transplants by species
                     for n in range(ntransplants):
                         #for individual in range(ntrees): #address of each tree in each cell within the 3-D matrix
-                        while individual < ntrees:
+                        while individual < ntrees:  #fill in the gaps
                             if not (DBH_matrix[x,y,individual] > 0.0):  #only plant if there's no tree there already
                                 # plant a new sapling of this tree type
-                                # update DBH_matrix with DBH of new sapling
+                                # update DBH_matrix with DBH (cm) of new sapling (initial DBH hardcoded)
                                 DBH_matrix[x,y,individual] = 2.5 + 0.25 * random.gauss(mu=0.0,       # average
                                                                                        sigma=1.0)    # standard deviation
-                                # update species_code_matrix with integer number corresponding to the specie of the new sapling
+                                # update species_code_matrix with integer number corresponding to the species of the new sapling
                                 species_code_matrix[x,y,individual] = species_code
                                 # set crown_base_matrix to 0
                                 crown_base_matrix[x,y,individual] = 0.0
@@ -795,15 +798,18 @@ def sprout_saplings_v2_3(DBH_matrix, crown_base_matrix, species_code_matrix, str
 
 #@numba.jit(nopython=True)
 def grow_trees(DBH_matrix, species_code_matrix, available_light_spp_factor_matrix, 
-                     partial_growth_factor_matrix, stress_flag_matrix, optimal_growth_increment_matrix):
+                     partial_growth_factor_matrix, stress_flag_matrix, optimal_growth_increment_matrix,species_code_to_stress_threshold):
     """
-    Parameters:  DBH_matrix -- records DBH for every tree in sim, size: sim grid by number of trees on each plot
-                 species_code_matrix -- records the specie of each tree in sim, size: sim grid by number of trees on each plot
+    Increment DBH based on optimal diameter increment (passed in) and the stresses the tree experiences based on environmental conditions/limitations.
+
+    Parameters:  DBH_matrix -- records DBH for every tree in sim, size: nx,ny,ntrees 
+                 species_code_matrix -- records the specie of each tree in sim, size: nx,ny,ntrees 
                  available_light_spp_factor_matrix -- matrix size: nx,ny,ntrees
                  partial_growth_factor_matrix -- matrix size: nx,ny,spp_in_sim
                  stress_flag_matrix -- matrix size: nx,ny,spp_in_sim
                  optimal_growth_increment_matrix -- optimal growth increment (cm) for each tree
                                                     matrix size: nx,ny,spp_in_sim
+                 species_code_to_stress_threshold -- look-up-table for species-specific minimum annual growth requirements (as fraction of opt inc)
 
     Returns:    DBH_matrix -- records DBH for every tree in sim, size: sim grid by number of trees on each plot
                 stress_flag_matrix -- the stress flag accumulator for each tree in the simulation; size: nx,ny,ntrees
@@ -822,10 +828,11 @@ def grow_trees(DBH_matrix, species_code_matrix, available_light_spp_factor_matri
                     soil_and_temp_factor_this_plot = partial_growth_factor_matrix[x,y,species_code] #this is the partial growth factor (min(soilmoist,soilfert)*GDD)
                     growth_factor = light_factor_for_tree * soil_and_temp_factor_this_plot #compute whole growth factor: light* min(soilmoist,soilfert) *GDD); need to do it like this b/c the matrices for the environmental factors are different sizes
                     actual_growth_increment = optimal_growth_increment * growth_factor #scale down the optimal growth increment by resource limitations
-                    if actual_growth_increment <= 0.1*optimal_growth_increment:
+                    #if actual_growth_increment <= 0.1*optimal_growth_increment: #same as if growth_factor<0.1
+                    if actual_growth_increment <= species_code_to_stress_threshold[species_code]*optimal_growth_increment: #same as if growth_factor<species_code_to_stress_threshold
                         stress_flag_matrix[x,y,individual] = stress_flag_matrix[x,y,individual] + 1
                     else:
-                        stress_flag_matrix[x,y,individual] = 0
+                        stress_flag_matrix[x,y,individual] = 0   #stress flags erased in a good growth year ("release")
                     new_tree_DBH = tree_DBH + actual_growth_increment #compute the new DBH
                     DBH_matrix[x,y,individual] =  new_tree_DBH #assign than new DBH to storage matrix
                     # store the growth factor for this tree (for debug purposes)
@@ -836,7 +843,7 @@ def grow_trees(DBH_matrix, species_code_matrix, available_light_spp_factor_matri
 
 def kill_trees(DBH_matrix, species_code_matrix, stress_flag_matrix, crown_base_matrix, number_of_species):
     """
-    # eventually convert this to numba to speed up the computation
+    
 
     Parameters:  DBH_matrix -- records DBH for every tree in sim, size: sim grid by number of trees on each plot
                  species_code_matrix -- records the specie of each tree in sim, size: sim grid by number of trees on each plot
@@ -850,11 +857,11 @@ def kill_trees(DBH_matrix, species_code_matrix, stress_flag_matrix, crown_base_m
                   stress_flag_matrix -- records the stress flags for each tree in sim, size: sim grid by number of trees 
                                         on each plot
     """
-    # compute a matrix containing the age nortality probability for each tree
+    # compute a matrix containing the age mortality probability for each tree
     age_mortality_probability_mat = np.zeros(DBH_matrix.shape, dtype=np.double)
     for current_species_code in range(number_of_species):
         mat_locations = (species_code_matrix == current_species_code)
-        age_mortality_probability_mat[mat_locations] = species_code_to_age_mortality_function[current_species_code]()
+        age_mortality_probability_mat[mat_locations] = species_code_to_age_mortality_function[current_species_code]()  #species-specific through AGEMAX
     # compute a matrix of random numbers
     a_random_mat = np.random.random(DBH_matrix.shape)
     b_random_mat = np.random.random(DBH_matrix.shape)
@@ -872,15 +879,15 @@ def kill_trees_numba(DBH_matrix, species_code_matrix, stress_flag_matrix, crown_
             for z in range(nz): #address of each cell in 3-D stress flag matrix
                 # STRESS-RELATED MORTALITY
                 flag = stress_flag_matrix[x,y,z]
-                if flag >=2:
-                    if a_random_mat[x,y,z] <= 0.37:   #throw the dart, tree will die due to stress (stress mortality)
+                if flag >=2:  #if a tree has accumulated 2 stress flags by growing less than minimum requirement for 2 consecutive years
+                    if a_random_mat[x,y,z] <= 0.37:   #throw the dart, tree will die due to stress (stress mortality); 1% chance of surviving 10 stressed year, retained from ZELIG & Shugart, 1984.
                         stress_flag_matrix[x,y,z] = 0 # stress flags stored as integers
                         DBH_matrix[x,y,z] = 0.0 # kill tree, DBH values stored as floats
                         species_code_matrix[x,y,z] = -1 #reset species code to empty
                         # set crown_base_matrix to 0
                         crown_base_matrix[x,y,z] = 0.0
  
-                # RANDOM MORTALITY
+                # RANDOM (AGE-REALTED) MORTALITY
                 # get a uniform random number between 0 and 1 and see if it falls within the probability of natural mortality
                 if b_random_mat[x,y,z] <= age_mortality_probability_mat[x,y,z]:
                     stress_flag_matrix[x,y,z] = 0 # stress flags stored as integers
@@ -890,8 +897,7 @@ def kill_trees_numba(DBH_matrix, species_code_matrix, stress_flag_matrix, crown_
                     crown_base_matrix[x,y,z] = 0.0
  
                 # OVER-PRUNE MORTALITY
-#TODO                tree_height = tree.height(dbh)
-#                    #if crown length = 0, kill the tree
+                #if crown length = 0, kill the tree, but actually in Avail Light Growth Factor (ALGF) computation, if crown length=0, ALGF=0, so flagged for stress mortality anyway
                           
     return DBH_matrix, stress_flag_matrix, species_code_matrix, crown_base_matrix
 
@@ -1098,7 +1104,7 @@ if __name__ == '__main__':
                                      compute_individual_tree_values, \
                                      compute_actual_leaf_area, \
                                      number_of_species, species_code_to_name, species_code_to_CP, species_code_to_SEED, \
-                                     species_code_to_age_mortality_function, species_code_to_inseeding_lag, name_to_species_code
+                                     species_code_to_age_mortality_function, species_code_to_inseeding_lag, name_to_species_code, species_code_to_stress_threshold
     ######################
     ### Load the driver file within the same scope as the the simulator code will run. This means that all definitions present in
     ### the driver will be available to the simulation. However!! the only one we use is 'driver' which should be a dictionary.

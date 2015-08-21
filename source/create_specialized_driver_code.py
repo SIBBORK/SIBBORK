@@ -38,6 +38,11 @@ def run_make_template(**kw):
         species_code_to_lag = [driver['species'][name]['INSEEDING_LAG'] for name in species_code_to_name if driver['species'][name]['ENABLED']]
         return species_code_to_lag
 
+    def make_id_to_stress_lut(driver):
+        species_code_to_name = make_id_to_name_lut(driver)
+        species_code_to_stress_threshold = [driver['species'][name]['STRESS_THRESHOLD'] for name in species_code_to_name if driver['species'][name]['ENABLED']]
+        return species_code_to_stress_threshold
+
     def display_dict(key, dict):
         s = "#  %s:\\n" % key
         keys = sorted( dict.keys(), key=str.lower )
@@ -90,6 +95,9 @@ species_code_to_SEED = ${str(make_id_to_SEED_lut(driver))}
 
 # the inseeding lag time by species
 species_code_to_inseeding_lag = ${str(make_id_to_inseeding_lag_lut(driver))}
+
+# species-specific thresholds on annual growth for stress-flagging
+species_code_to_stress_threshold = ${str(make_id_to_stress_lut(driver))}
 
 @numba.jit()
 def compute_species_factors_weather(GDD_matrix, drydays_fraction_mat, spp_in_sim):

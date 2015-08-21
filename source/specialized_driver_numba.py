@@ -233,7 +233,7 @@ def compute_actual_leaf_area(DBH_matrix, species_code_matrix, crown_base_matrix,
                                       size : nx, ny, MAX_TREES_PER_PLOT
                  tree_height_matrix -- the height of each individual tree on each plot
                                        size : nx, ny, MAX_TREES_PER_PLOT
-                 total_leaf_area_matrix -- the total leaf area of each individual tree on each plot
+                 total_leaf_area_matrix -- the total leaf area of each individual tree on each plot (m^2)
                                            size : nx, ny, MAX_TREES_PER_PLOT
                  actual_leaf_area_mat   --  pre-initialized: contains -1 below ground and 0 above ground for each plot and air space above plot
                                             size: nx, ny, vertical space = (max_tree_ht+(max elevation in sim - min elevation in sim))
@@ -256,12 +256,12 @@ def compute_actual_leaf_area(DBH_matrix, species_code_matrix, crown_base_matrix,
                     crown_length = tree_height - crown_base
                     if crown_length > 0:
                         total_leaf_area = total_leaf_area_matrix[x,y,individual]
-                        fd = total_leaf_area / crown_length
+                        fd = total_leaf_area / crown_length   #units: m2/m
                         # accumulate the foliage density popsicle for this plot consisting of many trees on the same DEM elevation
                         for ht in range(crown_base, int(tree_height)):
                             actual_leaf_area_mat[x,y,ht] += fd
 
-    return actual_leaf_area_mat
+    return actual_leaf_area_mat  #plot-sized popsicles
 
 @numba.jit()
 def compute_individual_tree_values(DBH_matrix, species_code_matrix, crown_base_matrix):
