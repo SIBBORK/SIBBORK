@@ -4,7 +4,7 @@ Brazhnik and Shugart (2015) SIBBORK: New Spatially-Explicit Gap Model for Boreal
 
 This model is licensed under the GNU General Public License v 2.0 (see LICENSE.txt).
 
-Introductory video is available at: https://vimeo.com/139717413
+Introductory video is available at: https://vimeo.com/139754089
 The model is described in the file SIBBORK_ModelDevelopment.PDF
 
 A full user's manual and tutorials will be uploaded later in 2015 (check back in the fall).
