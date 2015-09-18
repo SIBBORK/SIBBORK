@@ -48,7 +48,8 @@ def compute_3D_light_matrix_numba(actual_leaf_area_3D_mat,
     nx, ny, nz = actual_leaf_area_3D_mat.shape
 
     # the leaf area accumulations will be scaled by the ray path length
-    path_length = math.sqrt((dx*x_size_m)**2 + (dy*y_size_m)**2 + (dz*z_size_m)**2) #in meters
+    path_length = math.sqrt((dx*x_size_m)**2 + (dy*y_size_m)**2 + (dz*z_size_m)**2) #in meters (max possible for 10mX10mX1m is 14.2m, for 20mX20mX1m is 28m, for 30mX30mX1m is 42m)
+    #path_length = 1.0 
     # iterate through every x,y,z point in the grid to compute the available light from
     # the current "arrow" direction 
     for x in xrange(nx):   #boxes of the 3D grid that is comprised of plot grid & vertical airspace above the simulation domain
@@ -94,7 +95,7 @@ def compute_3D_light_matrix_numba(actual_leaf_area_3D_mat,
                         #break #if above two lines commented out: accumulate actual leaf area along ray trace until hit terrain, but
 
                     # accumulate the leaf area at this location and account for the ray path length
-                    actual_leaf_area_val = actual_leaf_area_3D_mat[ix,iy,iz]
+                    actual_leaf_area_val = actual_leaf_area_3D_mat[ix,iy,iz] #this is now the LAI 3-D matrix
                     accumulated_leaf_area = accumulated_leaf_area + (actual_leaf_area_val * path_length)
                     # move to the next location in the ray path
                     #ix, iy, iz = calculate_ala_index(ix, iy, iz,  # the current index position
@@ -116,7 +117,8 @@ def compute_3D_light_matrix_numba(actual_leaf_area_3D_mat,
                     az = az + z_size_m * (dem_offset_index_mat[prev_ix,prev_iy] - dem_offset_index_mat[ix,iy])
 
                 # normalize the accumulated leaf area (m^2) to plot area (m^2) (aka leaf area index)
-                lai = accumulated_leaf_area / plot_area
+                #lai = accumulated_leaf_area / plot_area #no longer need to divide by plot area here, b/c do this in the compute_actual_leaf_area function
+                lai = accumulated_leaf_area
 
                 # Use the Beer-Lambert law to compute the proportion of light that will reach this location.
                 # Additionally, scale the available light by the terrain shading matrix pre-computed from GIS.

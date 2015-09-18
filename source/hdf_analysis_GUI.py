@@ -155,7 +155,7 @@ def equation(command):
     else:
         print 'Invalid command :: equation("%s")' % command
 
-def results(command, **kwargs):
+def results(command, min_dbh=0, mask=None, csv=None, **kwargs):
     """
     Show model output by species (this may be spatially averaged within a simulation, or an average of multiple replicates, depending on what the HDF file contains)
     The coolest thing is that you can exclude small DBHs from the averaging by specifying the min_dbh value.
@@ -164,6 +164,8 @@ def results(command, **kwargs):
            if interested only in certain areas, e.g. where warming of +2C was applied, specify mask
            example: mask=(driver['elevation_lapse_rate_adjustment_matrix']==2)
                     results('bv',mask=mask)
+           if interested in creating a csv file of what's on the graph, specify name of file to write
+           example: results('bv',csv='filepath/filename.csv')
     'bm':  average total biomass (t/ha=Mg/ha) per plot for each species, normalized to per hectare
     'la':  average total leaf area (m2/ha) per plot for each species, normalized to per hectare
     'ba':  average total basal area (m2/ha) per plot for each species, normalized to per hectare
@@ -174,29 +176,29 @@ def results(command, **kwargs):
     'ht':  average tree height (m) for each species
     'lht': Lorey's height (m) for each species (contribution of height to the average is weighted by the tree's basal area)
     """
-    def launch(command, **kwargs):
+    def launch(command, min_dbh=0, mask=None, csv=None, **kwargs):
         if command == 'bv':
-            display_results_biovolume(**kwargs)
+            display_results_biovolume(min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
         elif command == 'bm':
-            display_results_biomass(**kwargs)
+            display_results_biomass(min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
         elif command == 'la':
-            display_results_leaf_area(**kwargs)
+            display_results_leaf_area(min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
         elif command == 'ba':
-            display_results_basal_area(**kwargs)
+            display_results_basal_area(min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
         elif command == 'stems':
-            display_results_stems(**kwargs)
+            display_results_stems(min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
         elif command == 'dbh':
-            display_results_average_dbh(**kwargs)
+            display_results_average_dbh(min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
         elif command == 'ht':
-            display_results_average_height(**kwargs)
+            display_results_average_height(min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
         elif command == 'lht':
-            display_results_loreys_height(**kwargs)
+            display_results_loreys_height(min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
     commands = ['bv','bm','la','ba','stems','dbh','ht','lht']
     if command == 'all':
         for cmd in commands:
-            launch(cmd, **kwargs)
+            launch(cmd, min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
     elif command in commands:
-        launch(command, **kwargs)
+        launch(command, min_dbh=min_dbh, mask=mask, csv=csv, **kwargs)
     else:
         print 'Invalid command :: results("%s")' % command
 
@@ -319,7 +321,7 @@ def scatter(command, **kwargs):
 def make_raster(command, year, raster_filename, **kwargs):
     """
     Make a georeferenced ASCII file to be read into GIS for
-    'spp': the dominant species on each plot by max biomass
+    'spp': the dominant species on each plot by max biovolume
            example: make_raster('spp',year=100,raster_filename='gisspp.txt')
     'lht': Lorey's height on each plot
            example: make_raster('lht',year=100,raster_filename='gislht.txt')
@@ -876,7 +878,7 @@ def display_swarm_biovolume(title='Swarm Histogram of Biovolume',
     callback_obj = AnimationCallback(years_to_run_list, update)
     timer_calls.append(callback_obj)
 
-def display_results_biovolume(min_dbh=0.0, mask=None, **kwargs):  #default: if no min_dbh is specified, all trees will be included; is no mask is specified, output from all plots will be shown
+def display_results_biovolume(min_dbh=0.0, mask=None, csv=None, **kwargs):  #default: if no min_dbh is specified, all trees will be included; is no mask is specified, output from all plots will be shown
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_biovolume(h5file, driver, min_dbh, mask)
@@ -892,11 +894,12 @@ def display_results_biovolume(min_dbh=0.0, mask=None, **kwargs):  #default: if n
                             num_species=num_species,
                             expected_values_key='EXPECTED_AGE_BIOVOLUME',
                             total_fn=sum_by_year,
-                            total_name='Sum All')
+                            total_name='Sum All',
+                            csv_filename=csv)
 
 
 
-def display_results_biomass(min_dbh=0.0, mask=None, **kwargs):
+def display_results_biomass(min_dbh=0.0, mask=None, csv=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_biomass(h5file, driver, min_dbh, mask)
@@ -912,10 +915,11 @@ def display_results_biomass(min_dbh=0.0, mask=None, **kwargs):
                             num_species=num_species,
                             expected_values_key='EXPECTED_AGE_BIOMASS',
                             total_fn=sum_by_year,
-                            total_name='Sum All')
+                            total_name='Sum All',
+                            csv_filename=csv)
 
 
-def display_results_leaf_area(min_dbh=0.0, mask=None, **kwargs):
+def display_results_leaf_area(min_dbh=0.0, mask=None, csv=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_leaf_area(h5file, driver, min_dbh, mask)
@@ -925,11 +929,12 @@ def display_results_leaf_area(min_dbh=0.0, mask=None, **kwargs):
                             left_label='Leaf Area (m^2/ha)',
                             years_in_sim_lst=years_in_sim_lst,
                             year_agg_mat=year_agg_mat,
-                            num_species=num_species,)
+                            num_species=num_species,
+                            csv_filename=csv)
 
 # TODO: foliar biomass
 
-def display_results_basal_area(min_dbh=0.0, mask=None, **kwargs):
+def display_results_basal_area(min_dbh=0.0, mask=None, csv=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_basal_area(h5file, driver, min_dbh, mask)
@@ -945,10 +950,11 @@ def display_results_basal_area(min_dbh=0.0, mask=None, **kwargs):
                             num_species=num_species,
                             expected_values_key='EXPECTED_AGE_BASAL_AREA',
                             total_fn=sum_by_year,
-                            total_name='Sum All')
+                            total_name='Sum All',
+                            csv_filename=csv)
 
 
-def display_results_stems(min_dbh=0.0, mask=None, **kwargs):
+def display_results_stems(min_dbh=0.0, mask=None, csv=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_stems(h5file, driver, min_dbh, mask)
@@ -959,10 +965,11 @@ def display_results_stems(min_dbh=0.0, mask=None, **kwargs):
                             years_in_sim_lst=years_in_sim_lst,
                             year_agg_mat=year_agg_mat,
                             num_species=num_species,
-                            expected_values_key='EXPECTED_STEMS')
+                            expected_values_key='EXPECTED_STEMS',
+                            csv_filename=csv)
 
 
-def display_results_average_dbh(min_dbh=0.0, mask=None, **kwargs):
+def display_results_average_dbh(min_dbh=0.0, mask=None, csv=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_average_dbh(h5file, driver, min_dbh, mask)
@@ -978,10 +985,11 @@ def display_results_average_dbh(min_dbh=0.0, mask=None, **kwargs):
                             num_species=num_species,
                             expected_values_key='EXPECTED_AGE_DBH',
                             total_fn=None, #max_by_year,
-                            total_name='Max All')
+                            total_name='Max All',
+                            csv_filename=csv)
 
 
-def display_results_average_height(min_dbh=0.0, mask=None, **kwargs):
+def display_results_average_height(min_dbh=0.0, mask=None, csv=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_average_height(h5file, driver, min_dbh, mask)
@@ -997,9 +1005,10 @@ def display_results_average_height(min_dbh=0.0, mask=None, **kwargs):
                             num_species=num_species,
                             expected_values_key='EXPECTED_HEIGHT',
                             total_fn=None, #max_by_year,
-                            total_name='Max All')
+                            total_name='Max All',
+                            csv_filename=csv)
 
-def display_results_loreys_height(min_dbh=0.0, mask=None, **kwargs):
+def display_results_loreys_height(min_dbh=0.0, mask=None, csv=None, **kwargs):
     years_in_sim_lst, \
     year_agg_mat, \
     num_species = compute_results_loreys_height(h5file, driver, min_dbh, mask)
@@ -1012,7 +1021,8 @@ def display_results_loreys_height(min_dbh=0.0, mask=None, **kwargs):
                             num_species=num_species,
                             expected_values_key='EXPECTED_HEIGHT',
                             total_fn=None,
-                            total_name='Max All')
+                            total_name='Max All',
+                            csv_filename=csv)
 
 
 def display_results_vs_time(title,
@@ -1023,13 +1033,17 @@ def display_results_vs_time(title,
                             num_species,
                             expected_values_key=None,
                             total_fn=None,
-                            total_name='Total'):
+                            total_name='Total',
+                            csv_filename=None):
     print 'opening ', title
     # create the window that the swarm will be plotted to
     plot = pg.plot(title=title)   ## create an empty plot widget
     plot.setLabels(bottom=bottom_label, left=left_label)
     legend = plot.addLegend()
     colors = make_colors(num_species+1)
+    # the pandas dataframe used for possible csv export
+    csv_dataframe = pd.DataFrame()
+    csv_dataframe['year'] = years_in_sim_lst
 
     for current_species_code in range(num_species):
         species_name = driver['species_code_to_name'][current_species_code]
@@ -1045,6 +1059,8 @@ def display_results_vs_time(title,
         if expected_values_key and driver['species'][species_name].has_key(expected_values_key):
             xs, ys = driver['species'][species_name][expected_values_key]
             expected_curve = plot.plot(xs, ys, pen=None, symbol='+', symbolPen=colors[current_species_code], symbolBrush=None, symbolSize=8)
+        # prepare the species data for csv export
+        csv_dataframe[species_name] = full_data_vec
 
     # plot the total values
     if total_fn:
@@ -1055,11 +1071,17 @@ def display_results_vs_time(title,
         space = 8
         pen.setDashPattern([2,space])
         plot.plot(years_in_sim_lst, total_vec, pen=pen, name=total_name)  # QtCore.Qt.DotLine QtCore.Qt.DashLine
+        csv_dataframe['total'] = total_vec
 
     # plot the expected totals
     if expected_values_key and driver.has_key(expected_values_key):
         xs, ys = driver[expected_values_key]
         expected_curve = plot.plot(xs, ys, pen=None, symbol='+', symbolPen=colors[-1], symbolBrush=None, symbolSize=10)
+
+    # export the csv data
+    if csv_filename is not None:
+        csv_dataframe.to_csv(path_or_buf=csv_filename, sep=',', index=False)
+        print "Wrote csv dat to file %s" % csv_filename
 
     plot.show()
 
@@ -1351,14 +1373,29 @@ class my_GLBarGraphItem(pggl.GLMeshItem):
         self.setMeshData(vertexes=verts.reshape(nCubes*8,3), faces=faces.reshape(nCubes*12,3), 
                          faceColors=cube_faces_colors, shader='shaded', smooth=False)  
 
+class MyGLViewWidget(pggl.GLViewWidget):
+    def __init__(self, *args, **kwargs):
+        pggl.GLViewWidget.__init__(self, *args, **kwargs)
+    def keyReleaseEvent(self, ev):
+        global timer
+        key = ev.key()
+        if key == ord('S'):
+            if timer.isActive():
+                timer.stop()
+            else:
+                 timer.start()
+        return pggl.GLViewWidget.keyReleaseEvent(self, ev)
+
+
 def display_spatial_max_height(title='Tree with maximum height in each plot'):
     global timer_calls
     print 'opening ', title
-    win = pggl.GLViewWidget()
+    #win = pggl.GLViewWidget()
     #win.opts['distance'] = 130
-    #win.setCameraPosition(distance=150)
+    win = MyGLViewWidget()
+    win.setCameraPosition(distance=150, elevation=50., azimuth=25) #150)
     #win.setCameraPosition(distance=20, elevation=40., azimuth=5) #-90)   #this one works for 30x30 flat!
-    win.setCameraPosition(distance=190, elevation=60., azimuth=90) #-90)    #this one works for 12x181 mountain!
+    #win.setCameraPosition(distance=190, elevation=60., azimuth=90) #-90)    #this one works for 12x181 mountain!
     #print "Camera position = ", win.setCameraPosition.__doc__
     #print dir(win)
     #win.showFullScreen()
@@ -1381,9 +1418,10 @@ def display_spatial_max_height(title='Tree with maximum height in each plot'):
 
     # the update function that will be called by the timer
     def update(year):
-        if year==1900:
-            import time
-            time.sleep(4)
+        if year%100==0:
+            timer.stop()
+            #import time
+            #time.sleep(4)
         year_str = '%.4d' % year
         # pull the current year dbh matrix from the hdf file
         dbh_matrix = np.array(h5file['DBH'][year_str])
@@ -1517,11 +1555,11 @@ def main():
     #command_info += "  display('DEM' | '?')\n"
     command_info += "  swarm('dbh' | 'bv' | 'rsf' | 'ht')\n"
     command_info += "  equation('ht' | 'bv' | 'bm' | 'la' | 'ba' | 'oi' | 'sff' | 'smf' | 'alf' | 'ddf' | 'all')\n"
-    command_info += "  results('bv' | 'bm' | 'la' | 'ba' | 'stems' | 'dbh' | 'ht' | 'lht' | 'all', min_dbh=0, mask)\n"
-    command_info += "  weather('gdd' | 'dry', mask)\n"
-    command_info += "  factor('sff' | 'smf' | 'alf' | 'ddf' | 'growth' | 'all', mask)\n"
+    command_info += "  results('bv' | 'bm' | 'la' | 'ba' | 'stems' | 'dbh' | 'ht' | 'lht' | 'all', min_dbh=0, mask=None, csv=None)\n"
+    command_info += "  weather('gdd' | 'dry', mask=None)\n"
+    command_info += "  factor('sff' | 'smf' | 'alf' | 'ddf' | 'growth' | 'all', mask=None)\n"
     command_info += "  spatial('ht' | 'all')\n"
-    command_info += "  scatter('sff' | 'smf' | 'alf' | 'ddf' | 'all', mask)\n"
+    command_info += "  scatter('sff' | 'smf' | 'alf' | 'ddf' | 'all', mask=None)\n"
     command_info += "  make_raster('spp' | 'lht' | 'bv', year, raster_filename)\n"   #spp = species code of the tree with the largest biomass on the plot. Need to specify year.
 
 ## TODO : 

@@ -121,7 +121,7 @@ def StartSimulation(driver_filename, output_filename, driver):
 
         # compute the actual leaf area (TODO: check that this value doesn't get out of control, unrealistic, implement QC, although LAIs in the lower 20s have been reported)
         actual_leaf_area_mat = compute_actual_leaf_area(DBH_matrix, species_code_matrix, crown_base_matrix, 
-                                                        tree_height_matrix, total_leaf_area_matrix, z_size_m)
+                                                        tree_height_matrix, total_leaf_area_matrix, z_size_m, driver['plot_area_m2'])
 
 
         # compute the weather related factors at the plot level
@@ -388,6 +388,8 @@ def initialization(driver_filename, output_filename, driver):
         arrows_list = build_arrows_list(xsize=x_size_m, ysize=y_size_m, zsize=z_size_m, PHIB=driver['PHIB'], PHID=driver['PHID'])
     elif driver['LIGHT_MODE']=='1D':
         arrows_list = build_arrows_list_independent(xsize=x_size_m, ysize=y_size_m, zsize=z_size_m)  #no need for PHIB or PHID b/c from overhead all light is diffuse
+        #print "1-D arrows list:", arrows_list
+        #assert(False)
     else:
         raise Exception("Can't grow trees in hyperbolic space! Select a proper LIGHT_MODE in driver (1D or 3D)!")
     # set up an empty actual leaf area matrix that has been adjusted for elevation in the DEM = these are the initial conditions w/o tree but w/terrain
@@ -456,7 +458,7 @@ def generate_weather(driver, initial_soil_water_mat, year):
     """
     temperature_avg_vec, temperature_std_vec, rain_avg_vec, rain_std_vec = driver['return_annual_weather_function'](year)  #units: deg C, deg C, cm, cm
 
-    GDD_matrix, \   #deg C
+    GDD_matrix, \
     monthly_temp_mat_lst, \
     total_growing_season_mat = GrowingDegreeDays_calc(ddbase = driver["DDBASE"], monthly_temperature_avgs_lst = temperature_avg_vec, 
                                                       monthly_temperature_stds_lst = temperature_std_vec, 
@@ -825,7 +827,7 @@ def grow_trees(DBH_matrix, species_code_matrix, available_light_spp_factor_matri
                     species_code = species_code_matrix[x,y,individual] #pulling out the species code for each individual
                     optimal_growth_increment = optimal_growth_increment_matrix[x,y,individual]
                     light_factor_for_tree = available_light_spp_factor_matrix[x,y,individual] #pull out the available light in a pillar at each tree's location
-                    soil_and_temp_factor_this_plot = partial_growth_factor_matrix[x,y,species_code] #this is the partial growth factor (min(soilmoist,soilfert)*GDD)
+                    soil_and_temp_factor_this_plot = partial_growth_factor_matrix[x,y,species_code] #this is the partial growth factor (min(soilmoist,soilfert,permafrost)*GDD)
                     growth_factor = light_factor_for_tree * soil_and_temp_factor_this_plot #compute whole growth factor: light* min(soilmoist,soilfert) *GDD); need to do it like this b/c the matrices for the environmental factors are different sizes
                     actual_growth_increment = optimal_growth_increment * growth_factor #scale down the optimal growth increment by resource limitations
                     #if actual_growth_increment <= 0.1*optimal_growth_increment: #same as if growth_factor<0.1

@@ -192,17 +192,10 @@ def build_arrows_list_independent(xsize, ysize, zsize):
 
     Returns: list_of_grid_steps_and_proportion_tuples -- a list of tuples (dx, dy, dz, proportion of total radiation)
     """
-
-    #list of tuples (azimuth angle degrees, elevation angle degrees, percent of total diffuse)
-    list_of_tuples_diffuse = [(0.  , 90., 1.)]
+    dx,dy,dz,proportion = 0.,0.,1.,1.  #directly overhead, this simplifies
 
     # build up a list of dx,dy,dz,proportion tuples that will be used to shoot arrows and scale the light value
-    list_of_grid_steps_and_proportion_tuples = []
-    for az_angle, el_angle, proportion in list_of_tuples_diffuse:
-        if proportion > 0 :
-            dx,dy,dz = compute_grid_step(azimuth=az_angle, elevation=el_angle, xsize=xsize, ysize=ysize, zsize=zsize)
-            list_of_grid_steps_and_proportion_tuples.append([dx,dy,dz,proportion])
-    #print list_of_grid_steps_and_proportion_tuples
+    list_of_grid_steps_and_proportion_tuples = [[dx,dy,dz,proportion]]
     return list_of_grid_steps_and_proportion_tuples
 
 

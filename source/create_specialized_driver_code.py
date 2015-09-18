@@ -240,7 +240,7 @@ def compute_available_light_factors_by_species(available_light_mat, number_of_sp
 
 @numba.jit()
 def compute_actual_leaf_area(DBH_matrix, species_code_matrix, crown_base_matrix, tree_height_matrix, total_leaf_area_matrix, 
-                               actual_leaf_area_mat):
+                               actual_leaf_area_mat, plot_area):
     '''
     Take the computed foliage densities for each tree, and sum them within each plot, creating an accumulated
     foliage density profile for the plot to use as input into the light computation
@@ -258,6 +258,7 @@ def compute_actual_leaf_area(DBH_matrix, species_code_matrix, crown_base_matrix,
                                            size : nx, ny, MAX_TREES_PER_PLOT
                  actual_leaf_area_mat   --  pre-initialized: contains -1 below ground and 0 above ground for each plot and air space above plot
                                             size: nx, ny, vertical space = (max_tree_ht+(max elevation in sim - min elevation in sim))
+                 plot_area -- plot area (m^2)
 
     Returns:  actual_leaf_area_mat --  contains contains the actual leaf area column for each plot in the simulation grid
                                        size: nx, ny, MAX_TREE_HEIGHT
@@ -277,7 +278,7 @@ def compute_actual_leaf_area(DBH_matrix, species_code_matrix, crown_base_matrix,
                     crown_length = tree_height - crown_base
                     if crown_length > 0:
                         total_leaf_area = total_leaf_area_matrix[x,y,individual]
-                        fd = total_leaf_area / crown_length
+                        fd = total_leaf_area / (crown_length * plot_area) #leaf area per crown volume, aka LAI/m
                         # accumulate the foliage density popsicle for this plot consisting of many trees on the same DEM elevation
                         for ht in range(crown_base, int(tree_height)):
                             actual_leaf_area_mat[x,y,ht] += fd
