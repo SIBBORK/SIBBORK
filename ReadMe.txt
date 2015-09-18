@@ -25,9 +25,6 @@ https://pypi.python.org/pypi/h5py/2.3.0
 GDAL library:
 https://pypi.python.org/pypi/GDAL/1.10.0
 
-cython:
-https://pypi.python.org/pypi/Cython/0.20.1
-
 numba:
 https://numba.pydata.org
 
@@ -40,13 +37,11 @@ Install:
     clone this project from commandline via:
         git clone https://github.com/SIBBORK/SIBBORK.git
     cd into source folder
-    compile the 3-D light ray tracing subroutine using cython from commandline via:
-        python2 setup.py build_ext --inplace
 
 Invoke the model from commandline via:
 
     python2 sibbork.py driver_OptIncCompare.py <folder>/<output_filename>.hdf5
 
 The output file is in Hierarchichal Data Format (HDF) and can be viewed with vitables in Linux or HDFviewer on a Windows platform.
-The output files can be large, on the order of 500MB, especially when running for 1000 years and multiple species. Make sure you have enough space, or make the file smaller by outputting less frequently or running for fewer years. State variables are output at the user-specified interval in the driver file (line 492). Run duration is specified in the driver (lines 432-433).
+The output files can be large, on the order of 500MB, especially when running for 1000 years and multiple species. Make sure you have enough space, or make the file smaller by outputting less frequently or running for fewer years. State variables are output at the user-specified interval in the driver file. Run duration is specified in the driver.
 
